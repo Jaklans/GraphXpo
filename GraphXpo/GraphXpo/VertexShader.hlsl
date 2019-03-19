@@ -27,7 +27,6 @@ struct VertexShaderInput
 	//  v    v                v
 	float3 position		: POSITION;     // XYZ position
 	float3 normal		: NORMAL;
-	float3 worldPos		: POSITION; // world-space position of the vertex
 	float2 UV			: TEXCOORD;
 };
 
