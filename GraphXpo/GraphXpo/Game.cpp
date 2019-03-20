@@ -87,11 +87,11 @@ void Game::Init()
 	//set up the directional lights
 	dl1.AmbientColor = XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f);
 	dl1.DiffuseColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
-	dl1.Direction = XMFLOAT3(1, -1, 0);
+	dl1.Direction = XMFLOAT3(0.25f, -0.15f, 1.0f);
 
 	dl2.AmbientColor = XMFLOAT4(0.05f, 0.0f, 0.0f, 1.0f);
 	dl2.DiffuseColor = XMFLOAT4(0.6f, 0.4f, 0.6f, 1.0f);
-	dl2.Direction = XMFLOAT3(-0.5f, -0.75f, 0.0f);
+	dl2.Direction = XMFLOAT3(0.0f, -0.55f, 1.0f);
 }
 
 // --------------------------------------------------------
@@ -256,8 +256,8 @@ void Game::Update(float deltaTime, float totalTime)
 // --------------------------------------------------------
 void Game::Draw(float deltaTime, float totalTime)
 {
-	// Background color (Cornflower Blue in this case) for clearing
-	const float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
+	// Background color (Black in this case) for clearing
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	// Clear the render target and depth buffer (erases what's on the screen)
 	//  - Do this ONCE PER FRAME

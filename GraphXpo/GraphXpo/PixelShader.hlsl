@@ -99,8 +99,14 @@ float4 main(VertexToPixel input) : SV_TARGET
 	//calculate color according to diffuse and lighting ///////////////////////////////
 	float4 surfaceColor = diffuseTexture.Sample(basicSampler, input.UV);
 
-	float4 finalColor = ApplyLight(dl1, input) + ApplyLight(dl2, input);
+	surfaceColor = pow(surfaceColor, 2.2); //un-gamma correct diffuse surface color
 
-	return surfaceColor * finalColor;
+	float4 lightColor = ApplyLight(dl1, input) + ApplyLight(dl2, input);
+
+	float4 finalColor = surfaceColor * lightColor; //apply lighting to the sampled surface color
+
+	finalColor = pow(finalColor, 1 / 2.2); //gamma correct the final color
+
+	return finalColor;
 }
 
