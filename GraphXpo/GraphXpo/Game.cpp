@@ -108,19 +108,19 @@ void Game::LoadShaders()
 	pixelShader = std::make_shared<SimplePixelShader>(device, context);
 	pixelShader->LoadShaderFile(L"PixelShader.cso");
 
-	ID3D11ShaderResourceView* barkSRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\bark.jpg", 0, &barkSRV);
-	ID3D11ShaderResourceView* bark_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\bark_s.jpg", 0, &bark_s_SRV);
-	ID3D11ShaderResourceView* bark_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\bark_n.jpg", 0, &bark_n_SRV);
+	ID3D11ShaderResourceView* rockSRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
+	ID3D11ShaderResourceView* rock_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock_s.jpg", 0, &rock_s_SRV);
+	ID3D11ShaderResourceView* rock_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock_n.jpg", 0, &rock_n_SRV);
 
-	ID3D11ShaderResourceView* carpetSRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet.jpg", 0, &carpetSRV);
-	ID3D11ShaderResourceView* carpet_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet_s.jpg", 0, &carpet_s_SRV);
-	ID3D11ShaderResourceView* carpet_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet_n.jpg", 0, &carpet_n_SRV);
+	ID3D11ShaderResourceView* brickSRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick.jpg", 0, &brickSRV);
+	ID3D11ShaderResourceView* brick_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick_s.jpg", 0, &brick_s_SRV);
+	ID3D11ShaderResourceView* brick_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick_n.jpg", 0, &brick_n_SRV);
 
 	ID3D11SamplerState* sampler;
 	D3D11_SAMPLER_DESC samplerDesc = {}; //zero out sampler description options
@@ -134,8 +134,8 @@ void Game::LoadShaders()
 
 	device->CreateSamplerState(&samplerDesc, &sampler);
 
-	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, barkSRV, bark_s_SRV, bark_n_SRV, sampler);
-	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, carpetSRV, carpet_s_SRV, carpet_n_SRV, sampler);
+	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, rockSRV, rock_s_SRV, rock_n_SRV, sampler);
+	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, brickSRV, brick_s_SRV, brick_n_SRV, sampler);
 }
 
 
@@ -190,8 +190,8 @@ void Game::CreateMatrices()
 // --------------------------------------------------------
 void Game::CreateBasicGeometry()
 {
-	meshes[0] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\helix.obj", device);
-	meshes[1] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\cone.obj", device);
+	meshes[0] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\cube.obj", device);
+	meshes[1] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\sphere.obj", device);
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\torus.obj", device);
 
 	//now create the new game objects and assign the meshes
@@ -241,11 +241,13 @@ void Game::Update(float deltaTime, float totalTime)
 
 	for (size_t i = 0; i < 10; i++) //update each of the game objects
 	{
-		XMFLOAT3 rotAxis(0, 0, 1);
+		XMFLOAT3 zAxis(0, 0, 1);
+		XMFLOAT3 yAxis(0, 1, 0);
 
 		gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
 		gameEntities[i]->transform->SetScale(gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
-		gameEntities[i]->transform->Rotate(rotAxis, cos(4 * totalTime) * 0.5f * deltaTime);
+		gameEntities[i]->transform->Rotate(zAxis, cos(2 * totalTime) * 0.5f * deltaTime);
+		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
 	}
 }
 

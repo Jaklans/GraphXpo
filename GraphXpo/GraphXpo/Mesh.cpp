@@ -10,6 +10,9 @@ using namespace DirectX;
 //Also stores a bit of misc data necessary for calling DrawIndexed().
 Mesh::Mesh(Vertex* vertices, int vertexCount, UINT* indices, int indexCount, ID3D11Device* device)
 {
+	//vertices have been loaded, determine their tangents
+	CalculateTangents(vertices, vertexCount, indices, indexCount);
+
 	//produce the index and vertex buffers
 	CreateBuffers(vertices, vertexCount, indices, indexCount, device);
 }
@@ -239,16 +242,95 @@ void Mesh::LoadOBJ(char* objFile, ID3D11Device* device)
 
 	// - "vertCounter" is BOTH the number of vertices and the number of indices
 	// - Yes, the indices are a bit redundant here (one per vertex).
+
+	//vertices have been loaded, determine their tangents
+	CalculateTangents(&verts[0], vertCounter, &indices[0], vertCounter);
+
 	CreateBuffers(&verts[0], vertCounter, &indices[0], vertCounter, device);	
+}
+
+///<summary>
+///Determines that tangents of each vertex in the mesh
+///Code Source: http://www.terathon.com/code/tangent.html
+///</summary>
+void Mesh::CalculateTangents(Vertex* vertices, int vertexCount, UINT* indices, int indexCount)
+{
+	// Reset tangents (just in case)
+	for (int i = 0; i < vertexCount; i++)
+	{
+		vertices[i].Tangent = XMFLOAT3(0, 0, 0);
+	}
+
+	//Calculate tangents a single triangle at a time
+	for (size_t i = 0; i < indexCount; i+=3)
+	{
+		//get the indices of this triangle
+		UINT i1 = indices[i];
+		UINT i2 = indices[i+1];
+		UINT i3 = indices[i+2];
+
+		//Retrieve the vertices composing this triangle
+		Vertex* v1 = &vertices[i1];
+		Vertex* v2 = &vertices[i2];
+		Vertex* v3 = &vertices[i3];
+
+		// Calculate vectors relative to triangle positions
+		float x1 = v2->Position.x - v1->Position.x;
+		float y1 = v2->Position.y - v1->Position.y;
+		float z1 = v2->Position.z - v1->Position.z;
+
+		float x2 = v3->Position.x - v1->Position.x;
+		float y2 = v3->Position.y - v1->Position.y;
+		float z2 = v3->Position.z - v1->Position.z;
+
+		// Do the same for vectors relative to triangle uv's
+		float s1 = v2->UV.x - v1->UV.x;
+		float t1 = v2->UV.y - v1->UV.y;
+
+		float s2 = v3->UV.x - v1->UV.x;
+		float t2 = v3->UV.y - v1->UV.y;
+
+		// Create vectors for tangent calculation
+		float r = 1.0f / (s1 * t2 - s2 * t1);
+
+		float tx = (t2 * x1 - t1 * x2) * r;
+		float ty = (t2 * y1 - t1 * y2) * r;
+		float tz = (t2 * z1 - t1 * z2) * r;
+
+		// Adjust tangents of each vert of the triangle
+		v1->Tangent.x += tx;
+		v1->Tangent.y += ty;
+		v1->Tangent.z += tz;
+
+		v2->Tangent.x += tx;
+		v2->Tangent.y += ty;
+		v2->Tangent.z += tz;
+
+		v3->Tangent.x += tx;
+		v3->Tangent.y += ty;
+		v3->Tangent.z += tz;
+	}
+
+	//orthogonality may have been lost in the above calculations
+	//Use the Gram-Schmidt process to orthogonalize
+	for (int i = 0; i < vertexCount; i++)
+	{
+		XMVECTOR normal = XMLoadFloat3(&vertices[i].Normal);
+		XMVECTOR tangent = XMLoadFloat3(&vertices[i].Tangent);
+
+		//orthogonalize the tangent
+		tangent = XMVector3Normalize( tangent - normal * XMVector3Dot(normal, tangent));
+
+		//store the results
+		XMStoreFloat3(&vertices[i].Tangent, tangent);
+	}
 }
 
 ///<summary>
 ///Helper function. Processes lists of vertices and indices into vertex and index buffers.
 ///</summary>
-void Mesh::CreateBuffers(Vertex * vertices, int vertexCount, UINT * indices, int indexCount, ID3D11Device * device)
+void Mesh::CreateBuffers(Vertex* vertices, int vertexCount, UINT * indices, int indexCount, ID3D11Device * device)
 {
-	//First, create the vertex buffer
-
 	// Create the VERTEX BUFFER description -----------------------------------
 	// - The description is created on the stack because we only need
 	//    it to create the buffer.  The description is then useless.

@@ -34,6 +34,7 @@ struct VertexToPixel
 	float4 position		: SV_POSITION;
 	float3 normal		: NORMAL;
 	float3 worldPos		: POSITION; // world-space position of the vertex
+	float3 tangent		: TANGENT;
 	float2 UV			: TEXCOORD;
 };
 
@@ -76,9 +77,26 @@ float4 ApplyLight(DirectionalLight light, VertexToPixel input)
 // --------------------------------------------------------
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	//normalize the normal, as interpolation can result in non-unit vectors
+	//normalize the normal from VS, as interpolation can result in non-unit vectors
 	input.normal = normalize(input.normal);
 
+	//ensure that tangent is still orthogonal (again, interpolation can cause issues)
+	//implements the gram-schmidt process
+	input.tangent = normalize(input.tangent - dot(input.tangent, input.normal) * input.normal);
+
+	//pull the normal from the normal map ////////////////////////////////////////////
+	float3 unpackedNorm = normalTexture.Sample(basicSampler, input.UV) * 2.0f - 1.0f;
+
+	float3 biTangent = cross(input.normal, input.tangent);
+
+	float3x3 TBN = float3x3(input.tangent, biTangent, input.normal);
+	
+	//Transform the normal from normal map to world space
+	input.normal = mul(unpackedNorm, TBN);
+
+	
+	
+	//calculate color according to diffuse and lighting ///////////////////////////////
 	float4 surfaceColor = diffuseTexture.Sample(basicSampler, input.UV);
 
 	float4 finalColor = ApplyLight(dl1, input) + ApplyLight(dl2, input);
