@@ -85,13 +85,21 @@ void Game::Init()
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//set up the directional lights
-	dl1.AmbientColor = XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f);
-	dl1.DiffuseColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
-	dl1.Direction = XMFLOAT3(0.25f, -0.15f, 1.0f);
+	Light dl1;
+	dl1.Type = LIGHT_TYPE_DIR;
+	dl1.Color = XMFLOAT3(0.5f, 0.5f, 0.5f);
+	dl1.Direction = XMFLOAT3(0.25f, -0.15f, 0.5f);
+	dl1.Intensity = 0.5f;
 
-	dl2.AmbientColor = XMFLOAT4(0.05f, 0.0f, 0.0f, 1.0f);
-	dl2.DiffuseColor = XMFLOAT4(0.6f, 0.4f, 0.6f, 1.0f);
-	dl2.Direction = XMFLOAT3(0.0f, -0.55f, 1.0f);
+	Light dl2;
+	dl2.Type = LIGHT_TYPE_POINT;
+	dl2.Color = XMFLOAT3(0.8f, 0.1f, 0.3f);
+	dl2.Position = XMFLOAT3(-1.0f, 1.0f, -2.0f);
+	dl2.Range = 5.0f;
+	dl2.Intensity = 3.0f;
+
+	lights.emplace_back(dl1);
+	lights.emplace_back(dl2);
 }
 
 // --------------------------------------------------------
@@ -277,9 +285,20 @@ void Game::Draw(float deltaTime, float totalTime)
 		if (gameEntities[i]->transform->matrixOutdated)
 			gameEntities[i]->transform->CalculateWorldMatrix();
 
-		//pass the directional lights to the material's pixel shader
-		gameEntities[i]->material->GetPixelShader()->SetData("dl1", &dl1, sizeof(DirectionalLight));
-		gameEntities[i]->material->GetPixelShader()->SetData("dl2", &dl2, sizeof(DirectionalLight));
+		//pass the appropriate lights to the material's pixel shader
+		Light goodLights[128];
+		int lightCount = 0;
+		for (size_t i = 0; i < lights.size(); i++)
+		{
+			if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
+			{
+				goodLights[lightCount] = lights[i];
+				lightCount++;
+			}
+		}
+
+		gameEntities[i]->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
+		gameEntities[i]->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
 
 		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera.transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
 
