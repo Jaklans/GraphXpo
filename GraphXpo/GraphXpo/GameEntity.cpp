@@ -1,6 +1,12 @@
 #include "GameEntity.h"
 
 
+///<summary>
+///Default Constructor
+///</summary>
+GameEntity::GameEntity()
+{
+}
 
 ///<summary>
 ///Accept the mesh data and set the default transformation.

@@ -56,6 +56,8 @@ Game::~Game()
 		delete gameEntities[i];
 	}
 
+	delete player;
+	delete camera;
 
 
 }
@@ -67,7 +69,11 @@ Game::~Game()
 void Game::Init()
 {
 	//create the camera
-	camera = Camera();
+	camera = new Camera();
+
+	//create the player
+	player = new FPSController(camera);
+
 	rotating = false;
 	printf("WASD to move. Space/X for vertical movement. Click and drag to rotate.");
 
@@ -188,7 +194,7 @@ void Game::CreateMatrices()
 		100.0f);					// Far clip plane distance
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P)); // Transpose for HLSL!
 
-	camera.UpdateProjectionMatrix(width, height);
+	camera->UpdateProjectionMatrix(width, height);
 }
 
 
@@ -232,7 +238,7 @@ void Game::OnResize()
 		100.0f);			  	// Far clip plane distance
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P)); // Transpose for HLSL!
 
-	camera.UpdateProjectionMatrix(width, height);
+	camera->UpdateProjectionMatrix(width, height);
 }
 
 // --------------------------------------------------------
@@ -244,7 +250,8 @@ void Game::Update(float deltaTime, float totalTime)
 	if (GetAsyncKeyState(VK_ESCAPE))
 		Quit();
 
-	camera.Update(deltaTime);
+	//camera->Update(deltaTime);
+	player->Update(deltaTime);
 
 	for (size_t i = 0; i < 10; i++) //update each of the game objects
 	{
@@ -299,9 +306,9 @@ void Game::Draw(float deltaTime, float totalTime)
 		gameEntities[i]->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
 		gameEntities[i]->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
 
-		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera.transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
+		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
 
-		gameEntities[i]->PrepareMaterial(camera.GetViewMatrix(), camera.GetProjectionMatrix());
+		gameEntities[i]->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
 
 		// Set buffers in the input assembler
 		//  - Do this ONCE PER OBJECT you're drawing, since each object might
@@ -398,7 +405,7 @@ void Game::OnMouseMove(WPARAM buttonState, int x, int y)
 		float yAngle = ((float)x - (float)prevMousePos.x) * pixelToRads;
 
 		//now rotate 
-		camera.RotateCamera(xAngle, yAngle);
+		camera->RotateCamera(xAngle, yAngle);
 	}
 
 

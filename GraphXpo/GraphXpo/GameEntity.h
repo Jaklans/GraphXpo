@@ -7,12 +7,17 @@
 class GameEntity
 {
 public:
+	///<summary>
+	///Default Constructor
+	///</summary>
+	GameEntity();
 
 	///<summary>
 	///Accept the mesh data and set the default transformation.
 	///</summary>
+	
 	GameEntity(std::shared_ptr<Mesh> const& meshObj, std::shared_ptr<Material> const& materialObj);
-	~GameEntity();
+	virtual ~GameEntity();
 	
 	///<summary>
 	///Set shader data and activate the shaders.

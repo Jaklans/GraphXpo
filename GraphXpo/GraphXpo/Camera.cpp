@@ -33,34 +33,6 @@ XMFLOAT4X4 Camera::GetProjectionMatrix()
 ///</Summary>
 void Camera::Update(float deltaTime)
 {
-	//INPUT, TO-DO: replace with a dedicated input handler
-
-	//move the camera
-	if (GetAsyncKeyState('W') & 0x8000)  //forward
-	{
-		transform.TranslateForward(deltaTime * 4.0f);
-	}
-	else if (GetAsyncKeyState('S') & 0x8000) //backwards
-	{
-		transform.TranslateForward(deltaTime * -4.0f);
-	}
-	if (GetAsyncKeyState('D') & 0x8000) //right
-	{
-		transform.TranslateLocal(deltaTime * 4.0f, 0, 0);
-	}
-	else if (GetAsyncKeyState('A') & 0x8000) //left
-	{
-		transform.TranslateLocal(deltaTime * -4.0f, 0, 0);
-	}
-	if (GetAsyncKeyState(VK_SPACE) & 0x8000) //up
-	{
-		transform.Translate(0, deltaTime * 4.0f, 0);
-	}
-	else if (GetAsyncKeyState('X') & 0x8000) //down
-	{
-		transform.Translate(0, deltaTime * -4.0f, 0);
-	}
-
 
 	//calculate the camera's view matrix
 
@@ -78,13 +50,14 @@ void Camera::Update(float deltaTime)
 ///</Summary>
 void Camera::RotateCamera(float xAngle, float yAngle)
 {
+
 	float xRotation = transform.GetRotation().x + xAngle;
 	float yRotation = transform.GetRotation().y + yAngle;
 
 	//wrap (perhaps unnecessary because we are using radians) and limit
 
 	//rotations around the x-axis need to be limited so the camera doesn't flip
-	//this implementation limits them to looking straight up and straight down, but never beyond
+	//this implementation limits them to looking straight up and straight down,w but never beyond
 	if (xRotation > xRotLimit)
 		xRotation = xRotLimit;
 	else if(xRotation < -xRotLimit)

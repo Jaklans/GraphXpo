@@ -11,6 +11,7 @@
 #include "Material.h"
 #include "Camera.h"
 #include "Lights.h"
+#include "FPSController.h"
 
 class Game 
 	: public DXCore
@@ -39,7 +40,8 @@ private:
 	void CreateMatrices();
 	void CreateBasicGeometry();
 
-	Camera camera;
+	Camera* camera;
+	FPSController* player;
 	bool rotating;
 
 	//lights
