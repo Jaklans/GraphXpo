@@ -57,7 +57,8 @@
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
-x64/
+x64/*
+!x64/Assets
 x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/

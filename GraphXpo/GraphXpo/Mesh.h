@@ -29,6 +29,12 @@ private:
 	void LoadOBJ(char* objFile, ID3D11Device* device);
 
 	///<summary>
+	///Determines that tangents of each vertex in the mesh
+	///Code Source: http://www.terathon.com/code/tangent.html
+	///</summary>
+	void CalculateTangents(Vertex* vertices, int vertexCount, UINT* indices, int indexCount);
+
+	///<summary>
 	///Helper function. Processes lists of vertices and indices into vertex and index buffers.
 	///</summary>
 	void CreateBuffers(Vertex* vertices, int vertexCount, UINT* indices, int indexCount, ID3D11Device* device);

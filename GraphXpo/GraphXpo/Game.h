@@ -4,6 +4,7 @@
 #include "SimpleShader.h"
 #include <DirectXMath.h>
 #include <memory>
+#include <vector>
 
 #include "Mesh.h"
 #include "GameEntity.h"
@@ -42,8 +43,7 @@ private:
 	bool rotating;
 
 	//lights
-	DirectionalLight dl1;
-	DirectionalLight dl2;
+	std::vector<Light> lights;
 
 	//Each mesh contains geometry data for drawing
 	std::shared_ptr<Mesh> meshes[3];

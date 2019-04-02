@@ -27,7 +27,7 @@ struct VertexShaderInput
 	//  v    v                v
 	float3 position		: POSITION;     // XYZ position
 	float3 normal		: NORMAL;
-	float3 worldPos		: POSITION; // world-space position of the vertex
+	float3 tangent		: TANGENT;
 	float2 UV			: TEXCOORD;
 };
 
@@ -46,6 +46,7 @@ struct VertexToPixel
 	float4 position		: SV_POSITION;	// XYZW position (System Value Position)
 	float3 normal		: NORMAL;
 	float3 worldPos		: POSITION; // world-space position of the vertex
+	float3 tangent		: TANGENT;
 	float2 UV			: TEXCOORD;
 };
 
@@ -81,6 +82,8 @@ VertexToPixel main( VertexShaderInput input )
 	output.normal = mul(input.normal, (float3x3)invTransWorld);
 
 	output.worldPos = mul(float4(input.position, 1.0f), world).xyz;
+
+	output.tangent = mul(input.tangent, (float3x3)invTransWorld);
 
 	output.UV = input.UV;
 

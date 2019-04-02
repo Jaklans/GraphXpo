@@ -1,10 +1,20 @@
 #include "Game.h"
 #include "Vertex.h"
 
+
 #include "WICTextureLoader.h"
 
+// For the DirectX Math library
 using namespace DirectX;
 
+// --------------------------------------------------------
+// Constructor
+//
+// DXCore (base class) constructor will set up underlying fields.
+// DirectX itself, and our window, are not ready yet!
+//
+// hInstance - the application's OS-level handle (unique ID)
+// --------------------------------------------------------
 Game::Game(HINSTANCE hInstance)
 	: DXCore(
 		hInstance,		// The application's handle
@@ -36,6 +46,9 @@ Game::Game(HINSTANCE hInstance)
 // --------------------------------------------------------
 Game::~Game()
 {
+	// Release any (and all!) DirectX objects
+	// we've made in the Game class
+
 	//I've opted to wrap meshes, shaders, and materials in shared_ptrs, so they don't require manual deallocation
 
 	//delete all of the game objects
@@ -43,28 +56,50 @@ Game::~Game()
 	{
 		delete gameEntities[i];
 	}
+
+
+
 }
 
+// --------------------------------------------------------
+// Called once per program, after DirectX and the window
+// are initialized but before the game loop.
+// --------------------------------------------------------
 void Game::Init()
 {
+	//create the camera
 	camera = Camera();
 	rotating = false;
 	printf("WASD to move. Space/X for vertical movement. Click and drag to rotate.");
 
+	// Helper methods for loading shaders, creating some basic
+	// geometry to draw and some simple camera matrices.
+	//  - You'll be expanding and/or replacing these later
 	LoadShaders();
 	CreateMatrices();
 	CreateBasicGeometry();
 
+	// Tell the input assembler stage of the pipeline what kind of
+	// geometric primitives (points, lines or triangles) we want to draw.  
+	// Essentially: "What kind of shape should the GPU draw with our data?"
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//set up the directional lights
-	dl1.AmbientColor = XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f);
-	dl1.DiffuseColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
-	dl1.Direction = XMFLOAT3(1, -1, 0);
+	Light dl1;
+	dl1.Type = LIGHT_TYPE_DIR;
+	dl1.Color = XMFLOAT3(0.5f, 0.5f, 0.5f);
+	dl1.Direction = XMFLOAT3(0.25f, -0.15f, 0.5f);
+	dl1.Intensity = 0.5f;
 
-	dl2.AmbientColor = XMFLOAT4(0.05f, 0.0f, 0.0f, 1.0f);
-	dl2.DiffuseColor = XMFLOAT4(0.6f, 0.4f, 0.6f, 1.0f);
-	dl2.Direction = XMFLOAT3(-0.5f, -0.75f, 0.0f);
+	Light dl2;
+	dl2.Type = LIGHT_TYPE_POINT;
+	dl2.Color = XMFLOAT3(0.8f, 0.1f, 0.3f);
+	dl2.Position = XMFLOAT3(-1.0f, 1.0f, -2.0f);
+	dl2.Range = 5.0f;
+	dl2.Intensity = 3.0f;
+
+	lights.emplace_back(dl1);
+	lights.emplace_back(dl2);
 }
 
 // --------------------------------------------------------
@@ -76,27 +111,27 @@ void Game::Init()
 void Game::LoadShaders()
 {
 	vertexShader = std::make_shared<SimpleVertexShader>(device, context);
-	vertexShader->LoadShaderFile(L"FoldingVert.cso");
+	vertexShader->LoadShaderFile(L"VertexShader.cso");
 
 	pixelShader = std::make_shared<SimplePixelShader>(device, context);
 	pixelShader->LoadShaderFile(L"PixelShader.cso");
 
-	ID3D11ShaderResourceView* barkSRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\bark.jpg", 0, &barkSRV);
-	ID3D11ShaderResourceView* bark_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\bark_s.jpg", 0, &bark_s_SRV);
-	ID3D11ShaderResourceView* bark_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\bark_n.jpg", 0, &bark_n_SRV);
+	ID3D11ShaderResourceView* rockSRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
+	ID3D11ShaderResourceView* rock_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock_s.jpg", 0, &rock_s_SRV);
+	ID3D11ShaderResourceView* rock_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock_n.jpg", 0, &rock_n_SRV);
 
-	ID3D11ShaderResourceView* carpetSRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet.jpg", 0, &carpetSRV);
-	ID3D11ShaderResourceView* carpet_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet_s.jpg", 0, &carpet_s_SRV);
-	ID3D11ShaderResourceView* carpet_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet_n.jpg", 0, &carpet_n_SRV);
+	ID3D11ShaderResourceView* brickSRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick.jpg", 0, &brickSRV);
+	ID3D11ShaderResourceView* brick_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick_s.jpg", 0, &brick_s_SRV);
+	ID3D11ShaderResourceView* brick_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick_n.jpg", 0, &brick_n_SRV);
 
 	ID3D11SamplerState* sampler;
-	D3D11_SAMPLER_DESC samplerDesc = {};
+	D3D11_SAMPLER_DESC samplerDesc = {}; //zero out sampler description options
 
 	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -107,8 +142,8 @@ void Game::LoadShaders()
 
 	device->CreateSamplerState(&samplerDesc, &sampler);
 
-	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, barkSRV, bark_s_SRV, bark_n_SRV, sampler);
-	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, carpetSRV, carpet_s_SRV, carpet_n_SRV, sampler);
+	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, rockSRV, rock_s_SRV, rock_n_SRV, sampler);
+	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, brickSRV, brick_s_SRV, brick_n_SRV, sampler);
 }
 
 
@@ -163,8 +198,8 @@ void Game::CreateMatrices()
 // --------------------------------------------------------
 void Game::CreateBasicGeometry()
 {
-	meshes[0] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\helix.obj", device);
-	meshes[1] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\cone.obj", device);
+	meshes[0] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\cube.obj", device);
+	meshes[1] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\sphere.obj", device);
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\torus.obj", device);
 
 	//now create the new game objects and assign the meshes
@@ -194,7 +229,7 @@ void Game::OnResize()
 	XMMATRIX P = XMMatrixPerspectiveFovLH(
 		0.25f * 3.1415926535f,	// Field of View Angle
 		(float)width / height,	// Aspect ratio
-		0.001f,				  	// Near clip plane distance
+		0.1f,				  	// Near clip plane distance
 		100.0f);			  	// Far clip plane distance
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P)); // Transpose for HLSL!
 
@@ -214,23 +249,23 @@ void Game::Update(float deltaTime, float totalTime)
 
 	for (size_t i = 0; i < 10; i++) //update each of the game objects
 	{
-		XMFLOAT3 rotAxis(0, 0, 1);
+		XMFLOAT3 zAxis(0, 0, 1);
+		XMFLOAT3 yAxis(0, 1, 0);
 
-		//gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
-		//gameEntities[i]->transform->SetScale(gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
-		//gameEntities[i]->transform->Rotate(rotAxis, cos(4 * totalTime) * 0.5f * deltaTime);
+		gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
+		gameEntities[i]->transform->SetScale(gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
+		gameEntities[i]->transform->Rotate(zAxis, cos(2 * totalTime) * 0.5f * deltaTime);
+		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
 	}
 }
-
-float TEMP_EVOLUTION_TIMER = -1.57f;
 
 // --------------------------------------------------------
 // Clear the screen, redraw everything, present to the user
 // --------------------------------------------------------
 void Game::Draw(float deltaTime, float totalTime)
 {
-	// Background color (Cornflower Blue in this case) for clearing
-	const float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
+	// Background color (Black in this case) for clearing
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	// Clear the render target and depth buffer (erases what's on the screen)
 	//  - Do this ONCE PER FRAME
@@ -250,9 +285,20 @@ void Game::Draw(float deltaTime, float totalTime)
 		if (gameEntities[i]->transform->matrixOutdated)
 			gameEntities[i]->transform->CalculateWorldMatrix();
 
-		//pass the directional lights to the material's pixel shader
-		gameEntities[i]->material->GetPixelShader()->SetData("dl1", &dl1, sizeof(DirectionalLight));
-		gameEntities[i]->material->GetPixelShader()->SetData("dl2", &dl2, sizeof(DirectionalLight));
+		//pass the appropriate lights to the material's pixel shader
+		Light goodLights[128];
+		int lightCount = 0;
+		for (size_t i = 0; i < lights.size(); i++)
+		{
+			if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
+			{
+				goodLights[lightCount] = lights[i];
+				lightCount++;
+			}
+		}
+
+		gameEntities[i]->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
+		gameEntities[i]->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
 
 		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera.transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
 
@@ -272,8 +318,6 @@ void Game::Draw(float deltaTime, float totalTime)
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("diffuseTexture", gameEntities[i]->material->GetDiffuse());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("specularTexture", gameEntities[i]->material->GetSpecular());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("normalTexture", gameEntities[i]->material->GetNormal());
-
-		gameEntities[i]->material->GetVertexShader()->SetFloat("evolution", (sin(TEMP_EVOLUTION_TIMER += .01f * deltaTime) + 1.0f) / 2.0f);
 
 		// Finally do the actual drawing
 		//  - Do this ONCE PER OBJECT you intend to draw
