@@ -1,7 +1,6 @@
 #include "Game.h"
 #include "Vertex.h"
 
-
 #include "WICTextureLoader.h"
 
 // For the DirectX Math library
@@ -117,18 +116,18 @@ void Game::LoadShaders()
 	pixelShader->LoadShaderFile(L"PixelShader.cso");
 
 	ID3D11ShaderResourceView* rockSRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
 	ID3D11ShaderResourceView* rock_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock_s.jpg", 0, &rock_s_SRV);
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock_s.jpg", 0, &rock_s_SRV);
 	ID3D11ShaderResourceView* rock_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\rock_n.jpg", 0, &rock_n_SRV);
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock_n.jpg", 0, &rock_n_SRV);
 
 	ID3D11ShaderResourceView* brickSRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick.jpg", 0, &brickSRV);
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\brick.jpg", 0, &brickSRV);
 	ID3D11ShaderResourceView* brick_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick_s.jpg", 0, &brick_s_SRV);
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\brick_s.jpg", 0, &brick_s_SRV);
 	ID3D11ShaderResourceView* brick_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\brick_n.jpg", 0, &brick_n_SRV);
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\brick_n.jpg", 0, &brick_n_SRV);
 
 	ID3D11SamplerState* sampler;
 	D3D11_SAMPLER_DESC samplerDesc = {}; //zero out sampler description options
@@ -198,9 +197,9 @@ void Game::CreateMatrices()
 // --------------------------------------------------------
 void Game::CreateBasicGeometry()
 {
-	meshes[0] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\cube.obj", device);
-	meshes[1] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\sphere.obj", device);
-	meshes[2] = std::make_shared<Mesh>((char *)"..\\Assets\\Models\\torus.obj", device);
+	meshes[0] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\cube.obj", device);
+	meshes[1] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\sphere.obj", device);
+	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
 
 	//now create the new game objects and assign the meshes
 	for (int i = 0; i < 10; i++)
