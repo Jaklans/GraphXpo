@@ -1,20 +1,10 @@
 #include "Game.h"
 #include "Vertex.h"
 
-
 #include "WICTextureLoader.h"
 
-// For the DirectX Math library
 using namespace DirectX;
 
-// --------------------------------------------------------
-// Constructor
-//
-// DXCore (base class) constructor will set up underlying fields.
-// DirectX itself, and our window, are not ready yet!
-//
-// hInstance - the application's OS-level handle (unique ID)
-// --------------------------------------------------------
 Game::Game(HINSTANCE hInstance)
 	: DXCore(
 		hInstance,		// The application's handle
@@ -46,9 +36,6 @@ Game::Game(HINSTANCE hInstance)
 // --------------------------------------------------------
 Game::~Game()
 {
-	// Release any (and all!) DirectX objects
-	// we've made in the Game class
-
 	//I've opted to wrap meshes, shaders, and materials in shared_ptrs, so they don't require manual deallocation
 
 	//delete all of the game objects
@@ -56,32 +43,18 @@ Game::~Game()
 	{
 		delete gameEntities[i];
 	}
-
-
-
 }
 
-// --------------------------------------------------------
-// Called once per program, after DirectX and the window
-// are initialized but before the game loop.
-// --------------------------------------------------------
 void Game::Init()
 {
-	//create the camera
 	camera = Camera();
 	rotating = false;
 	printf("WASD to move. Space/X for vertical movement. Click and drag to rotate.");
 
-	// Helper methods for loading shaders, creating some basic
-	// geometry to draw and some simple camera matrices.
-	//  - You'll be expanding and/or replacing these later
 	LoadShaders();
 	CreateMatrices();
 	CreateBasicGeometry();
 
-	// Tell the input assembler stage of the pipeline what kind of
-	// geometric primitives (points, lines or triangles) we want to draw.  
-	// Essentially: "What kind of shape should the GPU draw with our data?"
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//set up the directional lights
@@ -103,7 +76,7 @@ void Game::Init()
 void Game::LoadShaders()
 {
 	vertexShader = std::make_shared<SimpleVertexShader>(device, context);
-	vertexShader->LoadShaderFile(L"VertexShader.cso");
+	vertexShader->LoadShaderFile(L"FoldingVert.cso");
 
 	pixelShader = std::make_shared<SimplePixelShader>(device, context);
 	pixelShader->LoadShaderFile(L"PixelShader.cso");
@@ -123,7 +96,7 @@ void Game::LoadShaders()
 	CreateWICTextureFromFile(device, context, L"..\\Assets\\Textures\\carpet_n.jpg", 0, &carpet_n_SRV);
 
 	ID3D11SamplerState* sampler;
-	D3D11_SAMPLER_DESC samplerDesc = {}; //zero out sampler description options
+	D3D11_SAMPLER_DESC samplerDesc = {};
 
 	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -221,7 +194,7 @@ void Game::OnResize()
 	XMMATRIX P = XMMatrixPerspectiveFovLH(
 		0.25f * 3.1415926535f,	// Field of View Angle
 		(float)width / height,	// Aspect ratio
-		0.1f,				  	// Near clip plane distance
+		0.001f,				  	// Near clip plane distance
 		100.0f);			  	// Far clip plane distance
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P)); // Transpose for HLSL!
 
@@ -243,11 +216,13 @@ void Game::Update(float deltaTime, float totalTime)
 	{
 		XMFLOAT3 rotAxis(0, 0, 1);
 
-		gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
-		gameEntities[i]->transform->SetScale(gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
-		gameEntities[i]->transform->Rotate(rotAxis, cos(4 * totalTime) * 0.5f * deltaTime);
+		//gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
+		//gameEntities[i]->transform->SetScale(gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
+		//gameEntities[i]->transform->Rotate(rotAxis, cos(4 * totalTime) * 0.5f * deltaTime);
 	}
 }
+
+float TEMP_EVOLUTION_TIMER = -1.57f;
 
 // --------------------------------------------------------
 // Clear the screen, redraw everything, present to the user
@@ -297,6 +272,8 @@ void Game::Draw(float deltaTime, float totalTime)
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("diffuseTexture", gameEntities[i]->material->GetDiffuse());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("specularTexture", gameEntities[i]->material->GetSpecular());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("normalTexture", gameEntities[i]->material->GetNormal());
+
+		gameEntities[i]->material->GetVertexShader()->SetFloat("evolution", (sin(TEMP_EVOLUTION_TIMER += .01f * deltaTime) + 1.0f) / 2.0f);
 
 		// Finally do the actual drawing
 		//  - Do this ONCE PER OBJECT you intend to draw

@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <fstream>
+#include <stdexcept>
+#include <iostream>
 
 
 using namespace DirectX;
@@ -85,8 +87,10 @@ void Mesh::LoadOBJ(char* objFile, ID3D11Device* device)
 	std::ifstream obj(objFile);
 
 	// Check for successful open
-	if (!obj.is_open())
+	if (!obj.is_open()) {
+		throw std::runtime_error(strerror(errno));
 		return;
+	}
 
 	// Variables used while reading the file
 	std::vector<XMFLOAT3> positions;     // Positions from the file
