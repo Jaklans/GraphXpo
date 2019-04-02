@@ -16,6 +16,7 @@ GameEntity::GameEntity(std::shared_ptr<Mesh> const& meshObj, std::shared_ptr<Mat
 	mesh = meshObj;
 	material = materialObj;
 	transform = new Transform(); //create the entity's transform object
+	uvScale = 1;
 }
 
 GameEntity::~GameEntity()
@@ -37,6 +38,7 @@ void GameEntity::PrepareMaterial(DirectX::XMFLOAT4X4 view, DirectX::XMFLOAT4X4 p
 	material->GetVertexShader()->SetMatrix4x4("invTransWorld", transform->GetInverseTranspose());
 	material->GetVertexShader()->SetMatrix4x4("view", view);
 	material->GetVertexShader()->SetMatrix4x4("projection", projection);
+	material->GetVertexShader()->SetFloat("uvScale", uvScale);
 
 	// Once you've set all of the data you care to change for
 	// the next draw call, you need to actually send it to the GPU
@@ -53,3 +55,7 @@ void GameEntity::PrepareMaterial(DirectX::XMFLOAT4X4 view, DirectX::XMFLOAT4X4 p
 	material->GetPixelShader()->SetShader();
 }
 
+void GameEntity::SetUVScale(float scale)
+{
+	uvScale = scale;
+}

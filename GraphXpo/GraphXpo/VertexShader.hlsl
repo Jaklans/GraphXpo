@@ -11,6 +11,7 @@ cbuffer externalData : register(b0)
 	matrix invTransWorld;
 	matrix view;
 	matrix projection;
+	float uvScale;
 };
 
 // Struct representing a single vertex worth of data
@@ -85,7 +86,7 @@ VertexToPixel main( VertexShaderInput input )
 
 	output.tangent = mul(input.tangent, (float3x3)invTransWorld);
 
-	output.UV = input.UV;
+	output.UV = input.UV * uvScale; // Scale the UVs by the scale passed in (default of 1)
 
 	// Whatever we return will make its way through the pipeline to the
 	// next programmable stage we're using (the pixel shader for now)

@@ -48,13 +48,16 @@ private:
 	std::vector<Light> lights;
 
 	//Each mesh contains geometry data for drawing
-	std::shared_ptr<Mesh> meshes[3];
+	std::shared_ptr<Mesh> meshes[4];
 
-	//draw 10 objects to the screen
-	GameEntity* gameEntities[10];
+	// 20 GameEntity objects
+	// 10 floating objects, 8 arches, floor, ceiling
+	GameEntity* gameEntities[20];
 
 	std::shared_ptr<Material> barkMaterial;
 	std::shared_ptr<Material> carpetMaterial;
+	std::shared_ptr<Material> ceilingMaterial;
+	std::shared_ptr<Material> marbleMaterial;
 
 	// Wrappers for DirectX shaders to provide simplified functionality
 	std::shared_ptr<SimpleVertexShader> vertexShader;

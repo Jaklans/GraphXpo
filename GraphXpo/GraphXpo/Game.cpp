@@ -29,6 +29,7 @@ Game::Game(HINSTANCE hInstance)
 	meshes[0] = nullptr;
 	meshes[1] = nullptr;
 	meshes[2] = nullptr;
+	meshes[3] = nullptr;
 
 #if defined(DEBUG) || defined(_DEBUG)
 	// Do we want a console window?  Probably only in debug mode
@@ -51,7 +52,7 @@ Game::~Game()
 	//I've opted to wrap meshes, shaders, and materials in shared_ptrs, so they don't require manual deallocation
 
 	//delete all of the game objects
-	for (size_t i = 0; i < 10; i++)
+	for (size_t i = 0; i < 20; i++)
 	{
 		delete gameEntities[i];
 	}
@@ -135,6 +136,20 @@ void Game::LoadShaders()
 	ID3D11ShaderResourceView* brick_n_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\brick_n.jpg", 0, &brick_n_SRV);
 
+	ID3D11ShaderResourceView* ceilingSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\ceiling.tif", 0, &ceilingSRV);
+	ID3D11ShaderResourceView* ceiling_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\ceiling_roughness.tif", 0, &ceiling_s_SRV);
+	ID3D11ShaderResourceView* ceiling_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\ceiling_n.tif", 0, &ceiling_n_SRV);
+
+	ID3D11ShaderResourceView* marbleSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble.tif", 0, &marbleSRV);
+	ID3D11ShaderResourceView* marble_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_roughness.tif", 0, &marble_s_SRV);
+	ID3D11ShaderResourceView* marble_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_n.tif", 0, &marble_n_SRV);
+
 	ID3D11SamplerState* sampler;
 	D3D11_SAMPLER_DESC samplerDesc = {}; //zero out sampler description options
 
@@ -149,6 +164,8 @@ void Game::LoadShaders()
 
 	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, rockSRV, rock_s_SRV, rock_n_SRV, sampler);
 	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, brickSRV, brick_s_SRV, brick_n_SRV, sampler);
+	ceilingMaterial = std::make_shared<Material>(vertexShader, pixelShader, ceilingSRV, ceiling_s_SRV, ceiling_n_SRV, sampler);
+	marbleMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleSRV, marble_s_SRV, marble_n_SRV, sampler);
 }
 
 
@@ -206,6 +223,7 @@ void Game::CreateBasicGeometry()
 	meshes[0] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\cube.obj", device);
 	meshes[1] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\sphere.obj", device);
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
+	meshes[3] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\arch.obj", device);
 
 	//now create the new game objects and assign the meshes
 	for (int i = 0; i < 10; i++)
@@ -215,9 +233,28 @@ void Game::CreateBasicGeometry()
 		else
 			gameEntities[i] = new GameEntity(meshes[i % 3], carpetMaterial);
 
-		gameEntities[i]->transform->SetPosition((-7.0f + (float)i), 0, 0);
+		gameEntities[i]->transform->SetPosition((-4.0f + (float)i), 0, 1.2f);
 		gameEntities[i]->transform->SetScale(0.5f, 0.5f, 0.5f);
 	}
+
+	// Create arches
+	for (int i = 0; i < 8; i++) {
+		gameEntities[i + 10] = new GameEntity(meshes[3], marbleMaterial);
+		gameEntities[i + 10]->transform->SetPosition(-5.7f + 3.8f * (i % 4), -0.82f, ((i/4) * 12.4f) - 6.2f);
+		gameEntities[i + 10]->transform->SetScale(0.47f, 0.47f, 0.47f);
+	}
+
+	// Create the ceiling
+	gameEntities[18] = new GameEntity(meshes[0], ceilingMaterial);
+	gameEntities[18]->transform->SetPosition(0.0f, 2.5f, 0.0f);
+	gameEntities[18]->transform->SetScale(15.3f, 0.02f, 13.0f);
+	gameEntities[18]->SetUVScale(9.0f);
+
+	// Create the floor
+	gameEntities[19] = new GameEntity(meshes[0], carpetMaterial);
+	gameEntities[19]->transform->SetPosition(0.0f, -0.8f, 0.0f);
+	gameEntities[19]->transform->SetScale(15.3f, 0.02f, 13.0f);
+	gameEntities[19]->SetUVScale(4.2f);
 }
 
 
@@ -285,7 +322,7 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	
 
-	for (size_t i = 0; i < 10; i++)//draw each of the 10 gameEntities meshes
+	for (size_t i = 0; i < 20; i++)//draw each of the 10 gameEntities meshes
 	{
 		//if the world matrix is outdated, recalculate it
 		if (gameEntities[i]->transform->matrixOutdated)

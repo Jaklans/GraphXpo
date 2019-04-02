@@ -28,5 +28,8 @@ public:
 
 	std::shared_ptr<Mesh> mesh; //this object's mesh representation. Pointer is used so that mesh data can be shared
 	std::shared_ptr<Material> material;
+
+	float uvScale; // Float value to scale the game entities UVs by (default of 1)
+	void SetUVScale(float scale);
 };
 
