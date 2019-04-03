@@ -1,23 +1,13 @@
 #include "Game.h"
 #include "Vertex.h"
-
 #include "WICTextureLoader.h"
 
-// For the DirectX Math library
 using namespace DirectX;
 
-// --------------------------------------------------------
-// Constructor
-//
-// DXCore (base class) constructor will set up underlying fields.
-// DirectX itself, and our window, are not ready yet!
-//
-// hInstance - the application's OS-level handle (unique ID)
-// --------------------------------------------------------
 Game::Game(HINSTANCE hInstance)
 	: DXCore(
 		hInstance,		// The application's handle
-		"DirectX Game",	   	// Text for the window's title bar
+		"DirectX Game",	// Text for the window's title bar
 		1280,			// Width of the window's client area
 		720,			// Height of the window's client area
 		true)			// Show extra stats (fps) in title bar?
@@ -32,18 +22,12 @@ Game::Game(HINSTANCE hInstance)
 	meshes[3] = nullptr;
 
 #if defined(DEBUG) || defined(_DEBUG)
-	// Do we want a console window?  Probably only in debug mode
 	CreateConsoleWindow(500, 120, 32, 120);
 	printf("Console window created successfully.  Feel free to printf() here.\n");
 #endif
 	
 }
 
-// --------------------------------------------------------
-// Destructor - Clean up anything our game has created:
-//  - Release all DirectX objects created here
-//  - Delete any objects to prevent memory leaks
-// --------------------------------------------------------
 Game::~Game()
 {
 	// Release any (and all!) DirectX objects
@@ -59,8 +43,6 @@ Game::~Game()
 
 	delete player;
 	delete camera;
-
-
 }
 
 // --------------------------------------------------------
@@ -69,25 +51,16 @@ Game::~Game()
 // --------------------------------------------------------
 void Game::Init()
 {
-	//create the camera
 	camera = new Camera();
-
-	//create the player
 	player = new FPSController(camera);
 
 	rotating = false;
 	printf("WASD to move. Space/X for vertical movement. Click and drag to rotate.");
 
-	// Helper methods for loading shaders, creating some basic
-	// geometry to draw and some simple camera matrices.
-	//  - You'll be expanding and/or replacing these later
 	LoadShaders();
 	CreateMatrices();
 	CreateBasicGeometry();
 
-	// Tell the input assembler stage of the pipeline what kind of
-	// geometric primitives (points, lines or triangles) we want to draw.  
-	// Essentially: "What kind of shape should the GPU draw with our data?"
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//set up the directional lights
@@ -108,12 +81,6 @@ void Game::Init()
 	lights.emplace_back(dl2);
 }
 
-// --------------------------------------------------------
-// Loads shaders from compiled shader object (.cso) files using
-// my SimpleShader wrapper for DirectX shader manipulation.
-// - SimpleShader provides helpful methods for sending
-//   data to individual variables on the GPU
-// --------------------------------------------------------
 void Game::LoadShaders()
 {
 	vertexShader = std::make_shared<SimpleVertexShader>(device, context);
@@ -151,7 +118,7 @@ void Game::LoadShaders()
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_n.tif", 0, &marble_n_SRV);
 
 	ID3D11SamplerState* sampler;
-	D3D11_SAMPLER_DESC samplerDesc = {}; //zero out sampler description options
+	D3D11_SAMPLER_DESC samplerDesc = {};
 
 	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -169,21 +136,11 @@ void Game::LoadShaders()
 }
 
 
-
-// --------------------------------------------------------
-// Initializes the matrices necessary to represent our geometry's 
-// transformations and our 3D camera
-// --------------------------------------------------------
 void Game::CreateMatrices()
 {
 	// Set up world matrix
-	// - In an actual game, each object will need one of these and they should
-	//    update when/if the object moves (every frame)
-	// - You'll notice a "transpose" happening below, which is redundant for
-	//    an identity matrix.  This is just to show that HLSL expects a different
-	//    matrix (column major vs row major) than the DirectX Math library
 	XMMATRIX W = XMMatrixIdentity();
-	XMStoreFloat4x4(&worldMatrix, XMMatrixTranspose(W)); // Transpose for HLSL!
+	XMStoreFloat4x4(&worldMatrix, XMMatrixTranspose(W));
 
 	// Create the View matrix
 	// - In an actual game, recreate this matrix every time the camera 
@@ -199,7 +156,7 @@ void Game::CreateMatrices()
 		pos,     // The position of the "camera"
 		dir,     // Direction the camera is looking
 		up);     // "Up" direction in 3D space (prevents roll)
-	XMStoreFloat4x4(&viewMatrix, XMMatrixTranspose(V)); // Transpose for HLSL!
+	XMStoreFloat4x4(&viewMatrix, XMMatrixTranspose(V));
 
 	// Create the Projection matrix
 	// - This should match the window's aspect ratio, and also update anytime
@@ -215,9 +172,6 @@ void Game::CreateMatrices()
 }
 
 
-// --------------------------------------------------------
-// Creates the geometry we're going to draw - a single triangle for now
-// --------------------------------------------------------
 void Game::CreateBasicGeometry()
 {
 	meshes[0] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\cube.obj", device);
@@ -225,7 +179,7 @@ void Game::CreateBasicGeometry()
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
 	meshes[3] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\arch.obj", device);
 
-	//now create the new game objects and assign the meshes
+	// Create basic test geometry
 	for (int i = 0; i < 10; i++)
 	{
 		if(i % 2 == 0)
@@ -258,10 +212,6 @@ void Game::CreateBasicGeometry()
 }
 
 
-// --------------------------------------------------------
-// Handle resizing DirectX "stuff" to match the new window size.
-// For instance, updating our projection matrix's aspect ratio.
-// --------------------------------------------------------
 void Game::OnResize()
 {
 	// Handle base-level DX resize stuff
@@ -273,14 +223,12 @@ void Game::OnResize()
 		(float)width / height,	// Aspect ratio
 		0.1f,				  	// Near clip plane distance
 		100.0f);			  	// Far clip plane distance
-	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P)); // Transpose for HLSL!
+
+	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P));
 
 	camera->UpdateProjectionMatrix(width, height);
 }
 
-// --------------------------------------------------------
-// Update your game here - user input, move objects, AI, etc.
-// --------------------------------------------------------
 void Game::Update(float deltaTime, float totalTime)
 {
 	// Quit if the escape key is pressed
@@ -290,29 +238,28 @@ void Game::Update(float deltaTime, float totalTime)
 	//camera->Update(deltaTime);
 	player->Update(deltaTime);
 
-	for (size_t i = 0; i < 10; i++) //update each of the game objects
+	// Update each of the game objects
+	for (size_t i = 0; i < 10; i++) 
 	{
 		XMFLOAT3 zAxis(0, 0, 1);
 		XMFLOAT3 yAxis(0, 1, 0);
 
 		gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
-		gameEntities[i]->transform->SetScale(gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
+		gameEntities[i]->transform->SetScale( //We should remove functionality of non uniform scaling
+			gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, 
+			gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, 
+			gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
 		gameEntities[i]->transform->Rotate(zAxis, cos(2 * totalTime) * 0.5f * deltaTime);
 		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
 	}
 }
 
-// --------------------------------------------------------
-// Clear the screen, redraw everything, present to the user
-// --------------------------------------------------------
 void Game::Draw(float deltaTime, float totalTime)
 {
-	// Background color (Black in this case) for clearing
+	// Background color
 	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	// Clear the render target and depth buffer (erases what's on the screen)
-	//  - Do this ONCE PER FRAME
-	//  - At the beginning of Draw (before drawing *anything*)
+	// Clear the render target and depth buffer
 	context->ClearRenderTargetView(backBufferRTV, color);
 	context->ClearDepthStencilView(
 		depthStencilView,
@@ -321,14 +268,14 @@ void Game::Draw(float deltaTime, float totalTime)
 		0);
 
 	
-
-	for (size_t i = 0; i < 20; i++)//draw each of the 10 gameEntities meshes
+	// Game Entitie Meshes
+	for (size_t i = 0; i < 20; i++)
 	{
-		//if the world matrix is outdated, recalculate it
+		// If the world matrix is outdated, recalculate it
 		if (gameEntities[i]->transform->matrixOutdated)
 			gameEntities[i]->transform->CalculateWorldMatrix();
 
-		//pass the appropriate lights to the material's pixel shader
+		// Pass the appropriate lights to the material's pixel shader
 		Light goodLights[128];
 		int lightCount = 0;
 		for (size_t i = 0; i < lights.size(); i++)
@@ -362,100 +309,59 @@ void Game::Draw(float deltaTime, float totalTime)
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("specularTexture", gameEntities[i]->material->GetSpecular());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("normalTexture", gameEntities[i]->material->GetNormal());
 
-		// Finally do the actual drawing
-		//  - Do this ONCE PER OBJECT you intend to draw
-		//  - This will use all of the currently set DirectX "stuff" (shaders, buffers, etc)
-		//  - DrawIndexed() uses the currently set INDEX BUFFER to look up corresponding
-		//     vertices in the currently set VERTEX BUFFER
-		context->DrawIndexed(
-			gameEntities[i]->mesh->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
-			0,     // Offset to the first index we want to use
-			0);
+		context->DrawIndexed(gameEntities[i]->mesh->GetIndexCount(), 0, 0);
 	}
 
-	// Present the back buffer to the user
-	//  - Puts the final frame we're drawing into the window so the user can see it
-	//  - Do this exactly ONCE PER FRAME (always at the very end of the frame)
 	swapChain->Present(0, 0);
 }
 
 
 #pragma region Mouse Input
 
-// --------------------------------------------------------
-// Helper method for mouse clicking.  We get this information
-// from the OS-level messages anyway, so these helpers have
-// been created to provide basic mouse input if you want it.
-// --------------------------------------------------------
 void Game::OnMouseDown(WPARAM buttonState, int x, int y)
 {
-	// Add any custom code here...
-
-	if (buttonState & 0x0001) //if left click
+	// If Left Down
+	if (buttonState & 0x0001)
 	{
 		rotating = true;
 	}
 
-	// Save the previous mouse position, so we have it for the future
+	// Save the previous mouse position
 	prevMousePos.x = x;
 	prevMousePos.y = y;
 
-	// Caputure the mouse so we keep getting mouse move
-	// events even if the mouse leaves the window.  we'll be
-	// releasing the capture once a mouse button is released
+	// Capture the Mouse
 	SetCapture(hWnd);
 }
 
-// --------------------------------------------------------
-// Helper method for mouse release
-// --------------------------------------------------------
 void Game::OnMouseUp(WPARAM buttonState, int x, int y)
 {
-	// Add any custom code here...
-
-	if (!buttonState & 0x0001) //if left click released
+	// If Left Up
+	if (!buttonState & 0x0001)
 	{
 		rotating = false;
 	}
 
-	// We don't care about the tracking the cursor outside
-	// the window anymore (we're not dragging if the mouse is up)
 	ReleaseCapture();
 }
 
-// --------------------------------------------------------
-// Helper method for mouse movement.  We only get this message
-// if the mouse is currently over the window, or if we're 
-// currently capturing the mouse.
-// --------------------------------------------------------
 void Game::OnMouseMove(WPARAM buttonState, int x, int y)
 {
-	// Add any custom code here...
-
-	if (rotating) //in this case, if the left mouse button is being held down
+	if (rotating)
 	{
 		float pixelToRads = 0.003f;
 
-		//rotate the camera according to the change in the mouse position
-		//movement on the x-axis should rotate about the y-axis, and vice versa
 		float xAngle = ((float)y - (float)prevMousePos.y) * pixelToRads;
 		float yAngle = ((float)x - (float)prevMousePos.x) * pixelToRads;
 
-		//now rotate 
 		camera->RotateCamera(xAngle, yAngle);
 	}
 
-
-	// Save the previous mouse position, so we have it for the future
+	// Save Mouse Position
 	prevMousePos.x = x;
 	prevMousePos.y = y;
 }
 
-// --------------------------------------------------------
-// Helper method for mouse wheel scrolling.  
-// WheelDelta may be positive or negative, depending 
-// on the direction of the scroll
-// --------------------------------------------------------
 void Game::OnMouseWheel(float wheelDelta, int x, int y)
 {
 	// Add any custom code here...
