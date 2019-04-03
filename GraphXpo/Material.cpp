@@ -33,9 +33,9 @@ Material::Material(std::shared_ptr<SimpleVertexShader> const & vertex, std::shar
 Material::~Material()
 {
 	//release textures + samplers
-	diffuse->Release();
-	specular->Release();
-	normal->Release();
+	if (diffuse) { diffuse->Release(); }
+	if (specular) { specular->Release(); }
+	if (normal) { normal->Release(); }
 	//textureSampler->Release();
 }
 

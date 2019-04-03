@@ -27,6 +27,7 @@ public:
 	void OnResize();
 	void Update(float deltaTime, float totalTime);
 	void Draw(float deltaTime, float totalTime);
+	void DrawSky();
 
 	// Overridden mouse input helper methods
 	void OnMouseDown (WPARAM buttonState, int x, int y);
@@ -52,12 +53,14 @@ private:
 
 	// 20 GameEntity objects
 	// 10 floating objects, 8 arches, floor, ceiling
-	GameEntity* gameEntities[20];
+	GameEntity* gameEntities[22];
 
 	std::shared_ptr<Material> barkMaterial;
 	std::shared_ptr<Material> carpetMaterial;
 	std::shared_ptr<Material> ceilingMaterial;
 	std::shared_ptr<Material> marbleMaterial;
+	std::shared_ptr<Material> marbleWallMaterial;
+	std::shared_ptr<Material> skyMaterial;
 
 	// Wrappers for DirectX shaders to provide simplified functionality
 	std::shared_ptr<SimpleVertexShader> vertexShader;
@@ -72,5 +75,12 @@ private:
 	// Keeps track of the old mouse position.  Useful for 
 	// determining how far the mouse moved in a single frame.
 	POINT prevMousePos;
+
+	// Skybox
+	std::shared_ptr<SimpleVertexShader> skyVertexShader;
+	std::shared_ptr<SimplePixelShader> skyPixelShader;
+	ID3D11RasterizerState* skyRasterizerState;
+	ID3D11DepthStencilState* skyDepthStencilState;
+
 };
 

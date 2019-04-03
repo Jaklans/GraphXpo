@@ -1,6 +1,7 @@
 #include "Game.h"
 #include "Vertex.h"
 #include "WICTextureLoader.h"
+#include "DDSTextureLoader.h"
 
 using namespace DirectX;
 
@@ -36,13 +37,17 @@ Game::~Game()
 	//I've opted to wrap meshes, shaders, and materials in shared_ptrs, so they don't require manual deallocation
 
 	//delete all of the game objects
-	for (size_t i = 0; i < 20; i++)
+	for (size_t i = 0; i < 22; i++)
 	{
 		delete gameEntities[i];
 	}
 
 	delete player;
 	delete camera;
+
+	// Release sky resources
+	skyDepthStencilState->Release();
+	skyRasterizerState->Release();
 }
 
 // --------------------------------------------------------
@@ -89,6 +94,13 @@ void Game::LoadShaders()
 	pixelShader = std::make_shared<SimplePixelShader>(device, context);
 	pixelShader->LoadShaderFile(L"PixelShader.cso");
 
+	// Load Skybox shaders
+	skyVertexShader = std::make_shared<SimpleVertexShader>(device, context);
+	skyVertexShader->LoadShaderFile(L"SkyVertexShader.cso");
+
+	skyPixelShader = std::make_shared<SimplePixelShader>(device, context);
+	skyPixelShader->LoadShaderFile(L"SkyPixelShader.cso");
+
 	ID3D11ShaderResourceView* rockSRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
 	ID3D11ShaderResourceView* rock_s_SRV;
@@ -117,6 +129,16 @@ void Game::LoadShaders()
 	ID3D11ShaderResourceView* marble_n_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_n.tif", 0, &marble_n_SRV);
 
+	ID3D11ShaderResourceView* marbleWallSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_wall.tif", 0, &marbleWallSRV);
+	ID3D11ShaderResourceView* marbleWall_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_wall_roughness.tif", 0, &marbleWall_s_SRV);
+	ID3D11ShaderResourceView* marbleWall_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_wall_n.tif", 0, &marbleWall_n_SRV);
+
+	ID3D11ShaderResourceView* skySRV;
+	CreateDDSTextureFromFile(device, L"..\\..\\Assets\\Textures\\NightSkyCubemap.dds", 0, &skySRV);
+
 	ID3D11SamplerState* sampler;
 	D3D11_SAMPLER_DESC samplerDesc = {};
 
@@ -133,6 +155,22 @@ void Game::LoadShaders()
 	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, brickSRV, brick_s_SRV, brick_n_SRV, sampler);
 	ceilingMaterial = std::make_shared<Material>(vertexShader, pixelShader, ceilingSRV, ceiling_s_SRV, ceiling_n_SRV, sampler);
 	marbleMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleSRV, marble_s_SRV, marble_n_SRV, sampler);
+	marbleWallMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleWallSRV, marbleWall_s_SRV, marbleWall_n_SRV, sampler);
+	skyMaterial = std::make_shared<Material>(skyVertexShader, skyPixelShader, skySRV, nullptr, nullptr, sampler);
+
+	// Rasterizer and DepthStencil states for the skybox
+	D3D11_RASTERIZER_DESC skyRD = {};
+	skyRD.CullMode = D3D11_CULL_FRONT;
+	skyRD.FillMode = D3D11_FILL_SOLID;
+	skyRD.DepthClipEnable = true;
+	device->CreateRasterizerState(&skyRD, &skyRasterizerState);
+
+	D3D11_DEPTH_STENCIL_DESC skyDS = {};
+	skyDS.DepthEnable = true;
+	skyDS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	skyDS.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+	device->CreateDepthStencilState(&skyDS, &skyDepthStencilState);
+
 }
 
 
@@ -209,6 +247,17 @@ void Game::CreateBasicGeometry()
 	gameEntities[19]->transform->SetPosition(0.0f, -0.8f, 0.0f);
 	gameEntities[19]->transform->SetScale(15.3f, 0.02f, 13.0f);
 	gameEntities[19]->SetUVScale(4.2f);
+
+	// Create two walls
+	gameEntities[20] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[20]->transform->SetPosition(7.65f, 0.84f, 0.0f);
+	gameEntities[20]->transform->SetScale(0.02f, 3.32f, 13.0f);
+	gameEntities[20]->SetUVScale(4.8f);
+
+	gameEntities[21] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[21]->transform->SetPosition(-7.65f, 0.84f, 0.0f);
+	gameEntities[21]->transform->SetScale(0.02f, 3.32f, 13.0f);
+	gameEntities[21]->SetUVScale(4.8f);
 }
 
 
@@ -268,8 +317,8 @@ void Game::Draw(float deltaTime, float totalTime)
 		0);
 
 	
-	// Game Entitie Meshes
-	for (size_t i = 0; i < 20; i++)
+	// Game Entity Meshes
+	for (size_t i = 0; i < 22; i++)
 	{
 		// If the world matrix is outdated, recalculate it
 		if (gameEntities[i]->transform->matrixOutdated)
@@ -312,7 +361,45 @@ void Game::Draw(float deltaTime, float totalTime)
 		context->DrawIndexed(gameEntities[i]->mesh->GetIndexCount(), 0, 0);
 	}
 
+	// Draw the sky after all other entities have been drawn
+	DrawSky();
+
 	swapChain->Present(0, 0);
+}
+
+// Method for drawing the sky
+// This assumes that the cube mesh is meshes[0], might need to be changed at a later time
+void Game::DrawSky()
+{
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+
+	// Set the vertex and index buffers
+	ID3D11Buffer* vb = meshes[0]->GetVertexBuffer();
+	ID3D11Buffer* ib = meshes[0]->GetIndexBuffer();
+	context->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
+	context->IASetIndexBuffer(ib, DXGI_FORMAT_R32_UINT, 0);
+
+	// Set up the shaders
+	skyMaterial->GetVertexShader()->SetMatrix4x4("view", camera->GetViewMatrix());
+	skyMaterial->GetVertexShader()->SetMatrix4x4("projection", camera->GetProjectionMatrix());
+	skyMaterial->GetVertexShader()->CopyAllBufferData();
+	skyMaterial->GetVertexShader()->SetShader();
+
+	skyMaterial->GetPixelShader()->SetSamplerState("basicSampler", skyMaterial->GetSamplerState());
+	skyMaterial->GetPixelShader()->SetShaderResourceView("sky", skyMaterial->GetDiffuse());
+	skyMaterial->GetPixelShader()->SetShader();
+
+	// Set up the render states
+	context->RSSetState(skyRasterizerState);
+	context->OMSetDepthStencilState(skyDepthStencilState, 0);
+
+	// Draw the sky
+	context->DrawIndexed(meshes[0]->GetIndexCount(), 0, 0);
+
+	// Reset the render states
+	context->RSSetState(0);
+	context->OMSetDepthStencilState(0, 0);
 }
 
 
