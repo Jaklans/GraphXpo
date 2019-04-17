@@ -22,6 +22,8 @@ Game::Game(HINSTANCE hInstance)
 	meshes[2] = nullptr;
 	meshes[3] = nullptr;
 
+	postProcessing = true; //Toggle Post-processing effects
+
 #if defined(DEBUG) || defined(_DEBUG)
 	CreateConsoleWindow(500, 120, 32, 120);
 	printf("Console window created successfully.  Feel free to printf() here.\n");
@@ -41,6 +43,13 @@ Game::~Game()
 	{
 		delete gameEntities[i];
 	}
+
+	sampler->Release();
+
+	//Release Post-Process resources
+	bloomRTV->Release();
+	bloomSRV->Release();
+
 
 	delete player;
 	delete camera;
@@ -62,7 +71,7 @@ void Game::Init()
 	rotating = false;
 	printf("WASD to move. Space/X for vertical movement. Click and drag to rotate.");
 
-	LoadShaders();
+	LoadAssets();
 	CreateMatrices();
 	CreateBasicGeometry();
 
@@ -86,8 +95,21 @@ void Game::Init()
 	lights.emplace_back(dl2);
 }
 
-void Game::LoadShaders()
+void Game::LoadAssets()
 {
+	//Sampler Creation
+	D3D11_SAMPLER_DESC samplerDesc = {};
+
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	samplerDesc.MaxAnisotropy = 16;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	device->CreateSamplerState(&samplerDesc, &sampler);
+
+#pragma region shader loading
 	vertexShader = std::make_shared<SimpleVertexShader>(device, context);
 	vertexShader->LoadShaderFile(L"VertexShader.cso");
 
@@ -101,6 +123,20 @@ void Game::LoadShaders()
 	skyPixelShader = std::make_shared<SimplePixelShader>(device, context);
 	skyPixelShader->LoadShaderFile(L"SkyPixelShader.cso");
 
+	//Load Post-Processing shaders
+	postProcessVS = std::make_shared<SimpleVertexShader>(device, context);
+	postProcessVS->LoadShaderFile(L"PostProcessVS.cso");
+
+	brightExtractPS = std::make_shared<SimplePixelShader>(device, context);
+	brightExtractPS->LoadShaderFile(L"BrightnessExtractPS.cso");
+
+	bloomBlurPS = std::make_shared<SimplePixelShader>(device, context);
+	bloomBlurPS->LoadShaderFile(L"BloomBlurPS.cso");
+
+
+#pragma endregion
+
+#pragma region general texture loading
 	ID3D11ShaderResourceView* rockSRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
 	ID3D11ShaderResourceView* rock_s_SRV;
@@ -136,20 +172,11 @@ void Game::LoadShaders()
 	ID3D11ShaderResourceView* marbleWall_n_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_wall_n.tif", 0, &marbleWall_n_SRV);
 
+#pragma endregion
+
+#pragma region skybox loading
 	ID3D11ShaderResourceView* skySRV;
 	CreateDDSTextureFromFile(device, L"..\\..\\Assets\\Textures\\NightSkyCubemap.dds", 0, &skySRV);
-
-	ID3D11SamplerState* sampler;
-	D3D11_SAMPLER_DESC samplerDesc = {};
-
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-	samplerDesc.MaxAnisotropy = 16;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-	device->CreateSamplerState(&samplerDesc, &sampler);
 
 	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, rockSRV, rock_s_SRV, rock_n_SRV, sampler);
 	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, brickSRV, brick_s_SRV, brick_n_SRV, sampler);
@@ -170,6 +197,57 @@ void Game::LoadShaders()
 	skyDS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	skyDS.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 	device->CreateDepthStencilState(&skyDS, &skyDepthStencilState);
+
+#pragma endregion
+
+#pragma region post process resource loading
+	// Create post process resources
+	D3D11_TEXTURE2D_DESC textureDesc = {};
+	textureDesc.Width = width;
+	textureDesc.Height = height;
+	textureDesc.ArraySize = 1;
+	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.CPUAccessFlags = 0;
+	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.MipLevels = 1;
+	textureDesc.MiscFlags = 0;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+
+	// Create the Render Target View
+	D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = textureDesc.Format;
+	rtvDesc.Texture2D.MipSlice = 0;
+	rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+
+	// Create the Shader Resource View
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = textureDesc.Format;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+
+	//General Post Process render texture
+	ID3D11Texture2D* ppTexture;
+	device->CreateTexture2D(&textureDesc, 0, &ppTexture);
+	device->CreateRenderTargetView(ppTexture, &rtvDesc, &postProcessRTV);
+	device->CreateShaderResourceView(ppTexture, &srvDesc, &postProcessSRV);
+
+	//Bloom resources
+	ID3D11Texture2D* bloomTexture;
+	device->CreateTexture2D(&textureDesc, 0, &bloomTexture);
+	device->CreateRenderTargetView(bloomTexture, &rtvDesc, &bloomRTV);
+	device->CreateShaderResourceView(bloomTexture, &srvDesc, &bloomSRV);
+
+
+
+	// We don't need the texture references 
+	ppTexture->Release();
+	bloomTexture->Release();
+
+
+#pragma endregion
 
 }
 
@@ -316,7 +394,17 @@ void Game::Draw(float deltaTime, float totalTime)
 		1.0f,
 		0);
 
+	//POST PROCESS PRE-RENDER 
+	if (postProcessing)
+	{
+		
+		//Clear the post process texture
+		context->ClearRenderTargetView(postProcessRTV, color);
+		// Set the post process RTV as the current render target
+		context->OMSetRenderTargets(1, &postProcessRTV, depthStencilView);
+	}
 	
+#pragma region main draw
 	// Game Entity Meshes
 	for (size_t i = 0; i < 22; i++)
 	{
@@ -360,11 +448,17 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		context->DrawIndexed(gameEntities[i]->mesh->GetIndexCount(), 0, 0);
 	}
+#pragma endregion
 
 	// Draw the sky after all other entities have been drawn
 	DrawSky();
 
+	if (postProcessing)
+		PostProcessing();
+
 	swapChain->Present(0, 0);
+
+	context->OMSetRenderTargets(1, &backBufferRTV, depthStencilView);
 }
 
 // Method for drawing the sky
@@ -400,6 +494,64 @@ void Game::DrawSky()
 	// Reset the render states
 	context->RSSetState(0);
 	context->OMSetDepthStencilState(0, 0);
+}
+
+
+//General Post Processing method
+//Currently only implements bloom
+//TODO: Motion Blur, 
+void Game::PostProcessing()
+{
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	// Deactivate vertex and index buffers
+	ID3D11Buffer* nothing = 0;
+	context->IASetVertexBuffers(0, 1, &nothing, &stride, &offset);
+	context->IASetIndexBuffer(0, DXGI_FORMAT_R32_UINT, 0);
+
+	// Render a full-screen triangle using the post process shaders
+	postProcessVS->SetShader();
+
+#pragma region Bloom
+	//Set render target to first bloom texture -> Render texture with just the bright bits
+	context->OMSetRenderTargets(1, &bloomRTV, depthStencilView);
+
+	
+
+	//Pixel shader that renders just the bright parts
+	brightExtractPS->SetFloat("Threshold", 0.65f);
+	brightExtractPS->SetShaderResourceView("Pixels", postProcessSRV);
+	brightExtractPS->SetSamplerState("Sampler", sampler);
+	brightExtractPS->CopyAllBufferData();
+	brightExtractPS->SetShader();
+
+	context->Draw(3, 0);
+
+	
+	//Set render target to back buffer-> Render texture with blur combined with original frame
+	context->OMSetRenderTargets(1, &backBufferRTV, 0);
+	
+	bloomBlurPS->SetShaderResourceView("Pixels", postProcessSRV);   //Unchanged frame texture
+	bloomBlurPS->SetShaderResourceView("ExtractedPixels", bloomSRV);   //Brightness-extracted frame texture
+	bloomBlurPS->SetSamplerState("Sampler", sampler);
+	bloomBlurPS->SetFloat("pixelWidth", 1.f / width);
+	bloomBlurPS->SetFloat("pixelHeight", 1.f / height);
+	bloomBlurPS->SetInt("blurAmount", 4);
+	bloomBlurPS->CopyAllBufferData();
+	bloomBlurPS->SetShader();
+
+	context->Draw(3, 0);
+
+
+#pragma endregion
+
+
+
+	// Unbind all pixel shader SRVs
+	ID3D11ShaderResourceView* nullSRVs[16] = {};
+	context->PSSetShaderResources(0, 16, nullSRVs);
 }
 
 
