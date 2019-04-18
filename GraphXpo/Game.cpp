@@ -95,13 +95,21 @@ void Game::Init()
 
 	Light dl2;
 	dl2.Type = LIGHT_TYPE_POINT;
-	dl2.Color = XMFLOAT3(0.8f, 0.1f, 0.3f);
-	dl2.Position = XMFLOAT3(-1.0f, 1.0f, -2.0f);
+	dl2.Color = XMFLOAT3(0.4f, 0.1f, 0.3f);
+	dl2.Position = XMFLOAT3(0.0f, 1.0f, -2.5f);
 	dl2.Range = 5.0f;
 	dl2.Intensity = 3.0f;
 
+	Light dl3;
+	dl3.Type = LIGHT_TYPE_POINT;
+	dl3.Color = XMFLOAT3(0.8f, 0.8f, 0.8f);
+	dl3.Position = XMFLOAT3(-3.3f, 0.5f, -2.8f);
+	dl3.Range = 3.0f;
+	dl3.Intensity = 2.0f;
+
 	lights.emplace_back(dl1);
 	lights.emplace_back(dl2);
+	lights.emplace_back(dl3);
 
 	// Set up the Emitters
 	thrusterEmitter = new Emitter(
@@ -186,6 +194,9 @@ void Game::LoadAssets()
 	pixelShader = std::make_shared<SimplePixelShader>(device, context);
 	pixelShader->LoadShaderFile(L"PixelShader.cso");
 
+	pbrPixelShader = std::make_shared<SimplePixelShader>(device, context);
+	pbrPixelShader->LoadShaderFile(L"PBRPixelShader.cso");
+
 	// Load Skybox shaders
 	skyVertexShader = std::make_shared<SimpleVertexShader>(device, context);
 	skyVertexShader->LoadShaderFile(L"SkyVertexShader.cso");
@@ -253,6 +264,18 @@ void Game::LoadAssets()
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\StarSparrow_Purple.png", 0, &spaceshipSRV);
 	ID3D11ShaderResourceView* spaceship_n_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\StarSparrow_Normal.png", 0, &spaceship_n_SRV);
+	ID3D11ShaderResourceView* spaceship_m_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\StarSparrow_MetallicSmoothness.png", 0, &spaceship_m_SRV);
+
+	ID3D11ShaderResourceView* metalSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\grimy-metal_d.png", 0, &metalSRV);
+	ID3D11ShaderResourceView* metal_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\grimy-metal_n.png", 0, &metal_n_SRV);
+	ID3D11ShaderResourceView* metal_m_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\grimy-metal_m.png", 0, &metal_m_SRV);
+	ID3D11ShaderResourceView* metal_r_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\grimy-metal_r.png", 0, &metal_r_SRV);
+
 
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\fireParticle.jpg", 0, &particleTexture);
 
@@ -263,11 +286,11 @@ void Game::LoadAssets()
 	CreateDDSTextureFromFile(device, L"..\\..\\Assets\\Textures\\NightSkyCubemap.dds", 0, &skySRV);
 
 	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, rockSRV, rock_s_SRV, rock_n_SRV, sampler);
-	carpetMaterial = std::make_shared<Material>(vertexShader, pixelShader, brickSRV, brick_s_SRV, brick_n_SRV, sampler);
+	carpetMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, metalSRV, metal_m_SRV, metal_r_SRV, metal_n_SRV, sampler);
 	ceilingMaterial = std::make_shared<Material>(vertexShader, pixelShader, ceilingSRV, ceiling_s_SRV, ceiling_n_SRV, sampler);
 	marbleMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleSRV, marble_s_SRV, marble_n_SRV, sampler);
 	marbleWallMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleWallSRV, marbleWall_s_SRV, marbleWall_n_SRV, sampler);
-	spaceshipMaterial = std::make_shared<Material>(vertexShader, pixelShader, spaceshipSRV, nullptr, spaceship_n_SRV, sampler);
+	spaceshipMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, spaceshipSRV, spaceship_m_SRV, spaceship_m_SRV, spaceship_n_SRV, sampler);
 	skyMaterial = std::make_shared<Material>(skyVertexShader, skyPixelShader, skySRV, nullptr, nullptr, sampler);
 
 	// Rasterizer and DepthStencil states for the skybox
@@ -501,6 +524,8 @@ void Game::Update(float deltaTime, float totalTime)
 		gameEntities[i]->transform->Rotate(zAxis, cos(2 * totalTime) * 0.5f * deltaTime);
 		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
 	}
+
+	lights[1].Position = XMFLOAT3(lights[1].Position.x + sin(totalTime) * 0.025f, 0.5f, 1.0f);
 }
 
 void Game::Draw(float deltaTime, float totalTime)
@@ -565,8 +590,17 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		gameEntities[i]->material->GetPixelShader()->SetSamplerState("basicSampler", gameEntities[i]->material->GetSamplerState());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("diffuseTexture", gameEntities[i]->material->GetDiffuse());
-		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("specularTexture", gameEntities[i]->material->GetSpecular());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("normalTexture", gameEntities[i]->material->GetNormal());
+
+		if (gameEntities[i]->material->GetSpecular() == nullptr) //non-pbr
+		{
+			gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("specularTexture", gameEntities[i]->material->GetSpecular());
+		}
+		else // pbr
+		{
+			gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("metallicTexture", gameEntities[i]->material->GetMetalness());
+			gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("roughnessTexture", gameEntities[i]->material->GetRoughness());
+		}
 
 		context->DrawIndexed(gameEntities[i]->mesh->GetIndexCount(), 0, 0);
 	}

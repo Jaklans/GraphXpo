@@ -16,6 +16,11 @@ public:
 	Material(std::shared_ptr<SimpleVertexShader> const& vertex, std::shared_ptr<SimplePixelShader> const& pixel,
 		ID3D11ShaderResourceView* diff, ID3D11ShaderResourceView* spec, ID3D11ShaderResourceView* norm, ID3D11SamplerState* sampler
 	);
+
+	//pbr material (metalness-roughness workflow)
+	Material(std::shared_ptr<SimpleVertexShader> const& vertex, std::shared_ptr<SimplePixelShader> const& pixel,
+		ID3D11ShaderResourceView* diff, ID3D11ShaderResourceView* metal, ID3D11ShaderResourceView* rough, ID3D11ShaderResourceView* norm, ID3D11SamplerState* sampler
+	);
 	~Material();
 
 	//accessors
@@ -25,6 +30,8 @@ public:
 
 	ID3D11ShaderResourceView* GetDiffuse();
 	ID3D11ShaderResourceView* GetSpecular();
+	ID3D11ShaderResourceView* GetMetalness();
+	ID3D11ShaderResourceView* GetRoughness();
 	ID3D11ShaderResourceView* GetNormal();
 	ID3D11SamplerState* GetSamplerState();
 private:
@@ -36,6 +43,8 @@ private:
 
 	ID3D11ShaderResourceView* diffuse;
 	ID3D11ShaderResourceView* specular;
+	ID3D11ShaderResourceView* metalness;
+	ID3D11ShaderResourceView* roughness;
 	ID3D11ShaderResourceView* normal;
 	ID3D11SamplerState* textureSampler;
 };

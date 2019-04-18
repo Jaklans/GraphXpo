@@ -2,7 +2,7 @@
 
 #include <d3d11.h>
 #include <DirectXMath.h>
-
+#include <memory>
 #include "Camera.h"
 #include "SimpleShader.h"
 
