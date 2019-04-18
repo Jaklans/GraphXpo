@@ -21,6 +21,7 @@ Game::Game(HINSTANCE hInstance)
 	meshes[1] = nullptr;
 	meshes[2] = nullptr;
 	meshes[3] = nullptr;
+	meshes[4] = nullptr;
 
 	postProcessing = true; //Toggle Post-processing effects
 
@@ -39,7 +40,7 @@ Game::~Game()
 	//I've opted to wrap meshes, shaders, and materials in shared_ptrs, so they don't require manual deallocation
 
 	//delete all of the game objects
-	for (size_t i = 0; i < 22; i++)
+	for (size_t i = 0; i < 23; i++)
 	{
 		delete gameEntities[i];
 	}
@@ -53,6 +54,14 @@ Game::~Game()
 
 	delete player;
 	delete camera;
+
+	// Release particle resources
+	particleTexture->Release();
+	particleBlendState->Release();
+	particleDepthStencilState->Release();
+	delete thrusterEmitter;
+	delete thrusterEmitter2;
+	delete thrusterEmitter3;
 
 	// Release sky resources
 	skyDepthStencilState->Release();
@@ -93,6 +102,67 @@ void Game::Init()
 
 	lights.emplace_back(dl1);
 	lights.emplace_back(dl2);
+
+	// Set up the Emitters
+	thrusterEmitter = new Emitter(
+		80,									// Max particles
+		50,										// Particles per second
+		1.6f,									// Particle lifetime
+		0.33f,									// Start size
+		0.0f,									// End size
+		XMFLOAT4(0.788f, 0.094f, 0.094f, 0.0f),	// Start color
+		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// End color
+		XMFLOAT3(-4.44f, 0.115f, -1.68f),		// Emitter position
+		XMFLOAT3(-0.7f, -0.25f, 0.7f),			// Constant acceleration
+		XMFLOAT3(-0.48f, -0.18f, 0.48f),		// Start velocity
+		XMFLOAT3(0.1f, 0.05f, 0.0f),			// Velocity randomness range
+		XMFLOAT3(0, 0, 0),						// Position randomness range
+		XMFLOAT4(0, 0, -2, 2),					// Random rotation ranges (startMin, startMax, endMin, endMax)
+		device,
+		particleTexture,
+		particleVertexShader,
+		particlePixelShader
+	);
+
+	thrusterEmitter2 = new Emitter(
+		40,										// Max particles
+		23,										// Particles per second
+		1.3f,									// Particle lifetime
+		0.24f,									// Start size
+		0.0f,									// End size
+		XMFLOAT4(0.788f, 0.094f, 0.094f, 0.0f),	// Start color
+		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// End color
+		XMFLOAT3(-4.12f, 0.0f, -1.48f),			// Emitter position
+		XMFLOAT3(-0.7f, -0.25f, 0.7f),			// Constant acceleration
+		XMFLOAT3(-0.48f, -0.18f, 0.48f),		// Start velocity
+		XMFLOAT3(0.1f, 0.05f, 0.0f),			// Velocity randomness range
+		XMFLOAT3(0, 0, 0),						// Position randomness range
+		XMFLOAT4(0, 0, -2, 2),					// Random rotation ranges (startMin, startMax, endMin, endMax)
+		device,
+		particleTexture,
+		particleVertexShader,
+		particlePixelShader
+	);
+
+	thrusterEmitter3 = new Emitter(
+		40,										// Max particles
+		23,										// Particles per second
+		1.3f,									// Particle lifetime
+		0.24f,									// Start size
+		0.0f,									// End size
+		XMFLOAT4(0.788f, 0.094f, 0.094f, 0.0f),	// Start color
+		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// End color
+		XMFLOAT3(-4.68f, 0.0f, -1.98f),			// Emitter position
+		XMFLOAT3(-0.7f, -0.25f, 0.7f),			// Constant acceleration
+		XMFLOAT3(-0.48f, -0.18f, 0.48f),		// Start velocity
+		XMFLOAT3(0.1f, 0.05f, 0.0f),			// Velocity randomness range
+		XMFLOAT3(0, 0, 0),						// Position randomness range
+		XMFLOAT4(0, 0, -2, 2),					// Random rotation ranges (startMin, startMax, endMin, endMax)
+		device,
+		particleTexture,
+		particleVertexShader,
+		particlePixelShader
+	);
 }
 
 void Game::LoadAssets()
@@ -133,6 +203,13 @@ void Game::LoadAssets()
 	bloomBlurPS = std::make_shared<SimplePixelShader>(device, context);
 	bloomBlurPS->LoadShaderFile(L"BloomBlurPS.cso");
 
+	// Load Particle shaders
+	particleVertexShader = std::make_shared<SimpleVertexShader>(device, context);
+	particleVertexShader->LoadShaderFile(L"ParticleVertexShader.cso");
+
+	particlePixelShader = std::make_shared<SimplePixelShader>(device, context);
+	particlePixelShader->LoadShaderFile(L"ParticlePixelShader.cso");
+
 
 #pragma endregion
 
@@ -172,6 +249,13 @@ void Game::LoadAssets()
 	ID3D11ShaderResourceView* marbleWall_n_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\marble_wall_n.tif", 0, &marbleWall_n_SRV);
 
+	ID3D11ShaderResourceView* spaceshipSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\StarSparrow_Purple.png", 0, &spaceshipSRV);
+	ID3D11ShaderResourceView* spaceship_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\StarSparrow_Normal.png", 0, &spaceship_n_SRV);
+
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\fireParticle.jpg", 0, &particleTexture);
+
 #pragma endregion
 
 #pragma region skybox loading
@@ -183,6 +267,7 @@ void Game::LoadAssets()
 	ceilingMaterial = std::make_shared<Material>(vertexShader, pixelShader, ceilingSRV, ceiling_s_SRV, ceiling_n_SRV, sampler);
 	marbleMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleSRV, marble_s_SRV, marble_n_SRV, sampler);
 	marbleWallMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleWallSRV, marbleWall_s_SRV, marbleWall_n_SRV, sampler);
+	spaceshipMaterial = std::make_shared<Material>(vertexShader, pixelShader, spaceshipSRV, nullptr, spaceship_n_SRV, sampler);
 	skyMaterial = std::make_shared<Material>(skyVertexShader, skyPixelShader, skySRV, nullptr, nullptr, sampler);
 
 	// Rasterizer and DepthStencil states for the skybox
@@ -249,6 +334,32 @@ void Game::LoadAssets()
 
 #pragma endregion
 
+#pragma region particles loading
+	// A depth state for the particles
+	D3D11_DEPTH_STENCIL_DESC dsDesc = {};
+	dsDesc.DepthEnable = true;
+	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; // Turns off depth writing
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	device->CreateDepthStencilState(&dsDesc, &particleDepthStencilState);
+
+
+	// Blend for particles (additive)
+	D3D11_BLEND_DESC blend = {};
+	blend.AlphaToCoverageEnable = false;
+	blend.IndependentBlendEnable = false;
+	blend.RenderTarget[0].BlendEnable = true;
+	blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA; // Still respect pixel shader output alpha
+	blend.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+	blend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+	blend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	device->CreateBlendState(&blend, &particleBlendState);
+
+
+#pragma endregion
+
 }
 
 
@@ -294,6 +405,7 @@ void Game::CreateBasicGeometry()
 	meshes[1] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\sphere.obj", device);
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
 	meshes[3] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\arch.obj", device);
+	meshes[4] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\spaceship.obj", device);
 
 	// Create basic test geometry
 	for (int i = 0; i < 10; i++)
@@ -336,6 +448,12 @@ void Game::CreateBasicGeometry()
 	gameEntities[21]->transform->SetPosition(-7.65f, 0.84f, 0.0f);
 	gameEntities[21]->transform->SetScale(0.02f, 3.32f, 13.0f);
 	gameEntities[21]->SetUVScale(4.8f);
+
+	// Create the spaceship
+	gameEntities[22] = new GameEntity(meshes[4], spaceshipMaterial);
+	gameEntities[22]->transform->SetPosition(-3.6f, 0.44f, -2.5f);
+	gameEntities[22]->transform->SetScale(0.0023f, 0.0023f, 0.0023f);
+	gameEntities[22]->transform->SetRotation(0.22f, -0.8f, 0.0f);
 }
 
 
@@ -361,6 +479,10 @@ void Game::Update(float deltaTime, float totalTime)
 	// Quit if the escape key is pressed
 	if (GetAsyncKeyState(VK_ESCAPE))
 		Quit();
+
+	thrusterEmitter->Update(deltaTime, totalTime);
+	thrusterEmitter2->Update(deltaTime, totalTime);
+	thrusterEmitter3->Update(deltaTime, totalTime);
 
 	//camera->Update(deltaTime);
 	player->Update(deltaTime);
@@ -406,7 +528,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	
 #pragma region main draw
 	// Game Entity Meshes
-	for (size_t i = 0; i < 22; i++)
+	for (size_t i = 0; i < 23; i++)
 	{
 		// If the world matrix is outdated, recalculate it
 		if (gameEntities[i]->transform->matrixOutdated)
@@ -452,6 +574,19 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	// Draw the sky after all other entities have been drawn
 	DrawSky();
+
+	// Draw the emitter
+	float blend[4] = { 1,1,1,1 };
+	context->OMSetBlendState(particleBlendState, blend, 0xffffffff);	// Additive blending
+	context->OMSetDepthStencilState(particleDepthStencilState, 0);
+	thrusterEmitter->Draw(context, camera, totalTime);
+	thrusterEmitter2->Draw(context, camera, totalTime);
+	thrusterEmitter3->Draw(context, camera, totalTime);
+
+	// Reset states for drawing the sky
+	context->OMSetBlendState(0, blend, 0xffffffff);
+	context->OMSetDepthStencilState(0, 0);
+	context->RSSetState(0);
 
 	if (postProcessing)
 		PostProcessing();

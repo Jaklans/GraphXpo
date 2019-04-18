@@ -12,6 +12,7 @@
 #include "Camera.h"
 #include "Lights.h"
 #include "FPSController.h"
+#include "Emitter.h"
 
 class Game 
 	: public DXCore
@@ -50,11 +51,10 @@ private:
 	std::vector<Light> lights;
 
 	//Each mesh contains geometry data for drawing
-	std::shared_ptr<Mesh> meshes[4];
+	std::shared_ptr<Mesh> meshes[5];
 
-	// 20 GameEntity objects
-	// 10 floating objects, 8 arches, floor, ceiling
-	GameEntity* gameEntities[22];
+	// GameEntity objects
+	GameEntity* gameEntities[23];
 
 	std::shared_ptr<Material> barkMaterial;
 	std::shared_ptr<Material> carpetMaterial;
@@ -62,6 +62,7 @@ private:
 	std::shared_ptr<Material> marbleMaterial;
 	std::shared_ptr<Material> marbleWallMaterial;
 	std::shared_ptr<Material> skyMaterial;
+	std::shared_ptr<Material> spaceshipMaterial;
 
 	// Wrappers for DirectX shaders to provide simplified functionality
 	std::shared_ptr<SimpleVertexShader> vertexShader;
@@ -82,6 +83,16 @@ private:
 	std::shared_ptr<SimplePixelShader> skyPixelShader;
 	ID3D11RasterizerState* skyRasterizerState;
 	ID3D11DepthStencilState* skyDepthStencilState;
+
+	// Particles
+	ID3D11ShaderResourceView* particleTexture;
+	std::shared_ptr<SimpleVertexShader> particleVertexShader;
+	std::shared_ptr<SimplePixelShader> particlePixelShader;
+	ID3D11DepthStencilState* particleDepthStencilState;
+	ID3D11BlendState* particleBlendState;
+	Emitter* thrusterEmitter;
+	Emitter* thrusterEmitter2;
+	Emitter* thrusterEmitter3;
 
 	//POST-PROCESSING RESOURCES
 
