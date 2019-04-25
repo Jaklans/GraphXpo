@@ -95,7 +95,7 @@ void Game::Init()
 
 	Light dl2;
 	dl2.Type = LIGHT_TYPE_POINT;
-	dl2.Color = XMFLOAT3(0.4f, 0.1f, 0.3f);
+	dl2.Color = XMFLOAT3(0.4f, 0.2f, 0.4f);
 	dl2.Position = XMFLOAT3(0.0f, 1.0f, -2.5f);
 	dl2.Range = 5.0f;
 	dl2.Intensity = 3.0f;
@@ -525,7 +525,7 @@ void Game::Update(float deltaTime, float totalTime)
 		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
 	}
 
-	lights[1].Position = XMFLOAT3(lights[1].Position.x + sin(totalTime) * 0.025f, 0.5f, 1.0f);
+	lights[1].Position = XMFLOAT3(sin(totalTime/4) * 4.0f, 0.5f, 1.0f);
 }
 
 void Game::Draw(float deltaTime, float totalTime)

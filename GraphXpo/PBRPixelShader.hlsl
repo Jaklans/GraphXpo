@@ -2,7 +2,9 @@
 #define LIGHT_TYPE_POINT	1
 #define LIGHT_TYPE_SPOT		2
 
-#define MIN_ROUGHNESS		0.01
+
+static const float F0_NON_METAL = 0.04f;
+#define MIN_ROUGHNESS		0.000001
 #define PI					3.14159265
 
 //A general purpose light declaration
@@ -34,25 +36,16 @@ Texture2D normalTexture : register(t3);
 SamplerState basicSampler : register(s0);
 
 // Struct representing the data we expect to receive from earlier pipeline stages
-// - Should match the output of our corresponding vertex shader
-// - The name of the struct itself is unimportant
-// - The variable names don't have to match other shaders (just the semantics)
-// - Each variable must have a semantic, which defines its usage
 struct VertexToPixel
 {
-	// Data type
-	//  |
-	//  |   Name          Semantic
-	//  |    |                |
-	//  v    v                v
 	float4 position		: SV_POSITION;
 	float3 normal		: NORMAL;
-	float3 worldPos		: POSITION; // world-space position of the vertex
+	float3 worldPos		: POSITION; 
 	float3 tangent		: TANGENT;
 	float2 UV			: TEXCOORD;
 };
 
-//Trowbridge-Reitz BRDF, as supplied by class materials
+//Trowbridge-Reitz, as supplied by class materials
 float SpecularDistribution(float3 normal, float3 halfVec, float roughness)
 {
 	float NdotH = saturate(dot(normal, halfVec));
@@ -74,6 +67,7 @@ float3 Fresnel(float3 viewVec, float3 halfVec, float3 f0)
 	return f0 + (1 - f0) * pow(1 - VdotH, 5);
 }
 
+//Schlick-GGX (based on Schlick-Beckmann)
 float GeometricShadowing(float3 normal, float3 viewVec, float3 halfVec, float roughness)
 {
 	float k = pow(roughness + 1, 2) / 8.0f;
@@ -82,8 +76,11 @@ float GeometricShadowing(float3 normal, float3 viewVec, float3 halfVec, float ro
 	return NdotV / (NdotV * (1 - k) + k);
 }
 
-float3 MicrofacetBRDF(float3 normal, float3 halfVec, float3 viewVec, float3 toLight, float3 specColor, float roughness)
+// f(l,v) = D(h)F(v,h)G(l,v,h) / 4(n dot l)(n dot v)
+float3 MicrofacetBRDF(float3 normal, float3 viewVec, float3 toLight, float3 specColor, float roughness)
 {
+	float3 halfVec = normalize(toLight + viewVec);
+
 	float specDist = SpecularDistribution(normal, halfVec, roughness);
 	float3 fresnel = Fresnel(viewVec, halfVec, specColor);
 	float geoShadowing = GeometricShadowing(normal, viewVec, halfVec, roughness) * GeometricShadowing(normal, toLight, halfVec, roughness);
@@ -97,113 +94,81 @@ float3 DiffuseEnergyConserve(float diffuse, float3 specular, float metalness)
 	return diffuse * ((1 - saturate(specular)) * (1 - metalness));
 }
 
-float3 DirLight(Light light, VertexToPixel input)
+float3 DirLight(Light light, VertexToPixel input, float4 surfaceColor, float3 specColor, float metalness, float roughness)
 {
-	//Lambert Lighting + Ambient ////////////////////////////////////////////
-
 	//calculate the normalized direction to the light
 	float3 toLight = normalize(-light.Direction);
+	float3 viewVec = normalize(cameraPos - input.worldPos);
+	
+	float diffuse = saturate(dot(input.normal, toLight)); //the light amount on this pixel
+	float3 specular = MicrofacetBRDF(input.normal, viewVec, toLight, specColor, roughness);
 
-	//calculate light amount on this pixel
-	float nDotL = saturate(dot(input.normal, toLight));
+	float3 output = (DiffuseEnergyConserve(diffuse, specular, metalness) * surfaceColor.rgb) + specular;
 
-	//scale the diffuse by the amount of light hitting and add the ambient
-	float3 diffuse = (light.Color * nDotL) + (light.Color*0.1);
-
-	//specular lighting ///////////////////////////////////////////////////////
-
-	float3 viewVec = cameraPos - input.worldPos;
-	float3 halfVec = (toLight + viewVec) / 2;
-	float3 specColor = metallicTexture.Sample(basicSampler, input.UV);
-	float roughness = roughnessTexture.Sample(basicSampler, input.UV).r;
-
-	float3 specular = MicrofacetBRDF(input.normal, halfVec, viewVec, toLight, specColor, roughness);
-
-
-	float3 output = DiffuseEnergyConserve(diffuse, specular, specColor) + specular;
-
-	return output * light.Intensity;
+	return output * light.Intensity * light.Color;
 }
 
-float3 PointLight(Light light, VertexToPixel input)
+float3 PointLight(Light light, VertexToPixel input, float4 surfaceColor, float3 specColor, float metalness, float roughness)
 {
-	//Lambert Lighting + Ambient ////////////////////////////////////////////
-
 	//calculate the normalized direction to the light
 	float3 toLight = normalize(light.Position - input.worldPos);
+	float3 viewVec = normalize(cameraPos - input.worldPos);
 
-	//calculate light amount on this pixel
-	float nDotL = saturate(dot(input.normal, toLight));
+	float diffuse = saturate(dot(input.normal, toLight)); //the light amount on this pixel
+	float3 specular = MicrofacetBRDF(input.normal, viewVec, toLight, specColor, roughness);
 
-	//scale the diffuse by the amount of light hitting and add the ambient
-	float3 diffuse = (light.Color * nDotL) + (light.Color*0.1);
-
-	//specular lighting ///////////////////////////////////////////////////////
-
-	float3 viewVec = cameraPos - input.worldPos;
-	float3 halfVec = (toLight + viewVec) / 2;
-	float3 specColor = metallicTexture.Sample(basicSampler, input.UV);
-	float3 roughness = roughnessTexture.Sample(basicSampler, input.UV);
-
-	float3 specular = MicrofacetBRDF(input.normal, halfVec, viewVec, toLight, specColor, roughness);
-
-	float3 output = DiffuseEnergyConserve(diffuse, specular, specColor) + specular;
-
+	float3 output = (DiffuseEnergyConserve(diffuse, specular, metalness) * surfaceColor.rgb) + specular;
+	
 
 	float dist = length(light.Position - input.worldPos);
 
 	float attenuation = saturate(1.0-dist*dist/(light.Range * light.Range));
 	attenuation *= attenuation;
 
-	return output * attenuation * light.Intensity;
+	return output * attenuation * light.Intensity * light.Color;
 }
 
-// --------------------------------------------------------
-// The entry point (main method) for our pixel shader
-// 
-// - Input is the data coming down the pipeline (defined by the struct)
-// - Output is a single color (float4)
-// - Has a special semantic (SV_TARGET), which means 
-//    "put the output of this into the current render target"
-// - Named "main" because that's the default the shader compiler looks for
-// --------------------------------------------------------
-float4 main(VertexToPixel input) : SV_TARGET
+float3 ApplyNormalMap(VertexToPixel input)
 {
-	//normalize the normal from VS, as interpolation can result in non-unit vectors
-	input.normal = normalize(input.normal);
-
-	//ensure that tangent is still orthogonal (again, interpolation can cause issues)
-	//implements the gram-schmidt process
-	input.tangent = normalize(input.tangent - dot(input.tangent, input.normal) * input.normal);
-
-	//pull the normal from the normal map ////////////////////////////////////////////
 	float3 unpackedNorm = (float3)normalTexture.Sample(basicSampler, input.UV) * 2.0f - 1.0f;
 
 	float3 biTangent = cross(input.normal, input.tangent);
 
 	float3x3 TBN = float3x3(input.tangent, biTangent, input.normal);
-	
-	//Transform the normal from normal map to world space
-	input.normal = mul(unpackedNorm, TBN);
 
+	//Transform the normal from texture space to world space and return it
+	return mul(unpackedNorm, TBN);
+}
+
+
+float4 main(VertexToPixel input) : SV_TARGET
+{
+	//Ensure normal and tangent are normalized and orthogonal after being interpolated
+	input.normal = normalize(input.normal);
+	input.tangent = normalize(input.tangent - dot(input.tangent, input.normal) * input.normal);
 	
-	//calculate color according to diffuse and lighting ///////////////////////////////
+	input.normal = ApplyNormalMap(input);
+
+	//calc. surface details before lighting
 	float4 surfaceColor = diffuseTexture.Sample(basicSampler, input.UV);
-
 	surfaceColor = pow(surfaceColor, 2.2); //un-gamma correct diffuse surface color
+	float metalness = metallicTexture.Sample(basicSampler, input.UV).r;
+	float roughness = roughnessTexture.Sample(basicSampler, input.UV).r;
+	float3 specColor = lerp(F0_NON_METAL.rrr, surfaceColor.rgb, metalness);
 	
+
 	//process all lights this frame
 	float3 lightColor = float3(0, 0, 0);
 	for (int i = 0; i < lightCount; i++)
 	{
 		switch (lights[i].Type)
 		{
-		case LIGHT_TYPE_DIR: lightColor += DirLight(lights[i], input);			break;
-		case LIGHT_TYPE_POINT: lightColor += PointLight(lights[i], input);		break;
+		case LIGHT_TYPE_DIR: lightColor += DirLight(lights[i], input, surfaceColor, specColor, metalness, roughness);			break;
+		case LIGHT_TYPE_POINT: lightColor += PointLight(lights[i], input, surfaceColor, specColor, metalness, roughness);		break;
 		}
 	}
 
-	float4 finalColor = surfaceColor * float4(lightColor,1); //apply lighting to the sampled surface color
+	float4 finalColor = float4(lightColor,1); //apply lighting to the sampled surface color
 
 	finalColor = pow(finalColor, 1 / 2.2); //gamma correct the final color
 
