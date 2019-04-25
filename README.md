@@ -5,6 +5,7 @@ A DirectX 11 graphics showcase.
 #### Features currently include:
 
 - Normal Mapping
+- Direct PBR
 - Skybox
 - Bloom
 - Particles
@@ -21,3 +22,5 @@ A DirectX 11 graphics showcase.
 [Marble Wall Texture](https://www.textures.com/download/pbr0106/133141)
 
 [Spaceship Models and Textures](https://assetstore.unity.com/packages/3d/vehicles/space/star-sparrow-modular-spaceship-73167)
+
+[Grimy Metal PBR Textures](https://freepbr.com/materials/grimy-metal/)
