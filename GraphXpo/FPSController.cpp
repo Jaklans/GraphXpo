@@ -59,5 +59,12 @@ void FPSController::HandleInput(float deltaTime)
 	{
 		transform->TranslateLocal(deltaTime * -4.0f, 0, 0);
 	}
-
+	if (GetAsyncKeyState('X') & 0x8000) //up
+	{
+		transform->TranslateLocal(0.0f, deltaTime * 4.0f, 0);
+	}
+	if (GetAsyncKeyState('C') & 0x8000) //up
+	{
+		transform->TranslateLocal(0.0f, deltaTime * -4.0f, 0);
+	}
 }

@@ -22,6 +22,7 @@ Game::Game(HINSTANCE hInstance)
 	meshes[2] = nullptr;
 	meshes[3] = nullptr;
 	meshes[4] = nullptr;
+	meshes[5] = nullptr;
 
 	postProcessing = true; //Toggle Post-processing effects
 
@@ -44,6 +45,9 @@ Game::~Game()
 	{
 		delete gameEntities[i];
 	}
+
+
+	delete flatWater;
 
 	sampler->Release();
 
@@ -90,8 +94,8 @@ void Game::Init()
 	Light dl1;
 	dl1.Type = LIGHT_TYPE_DIR;
 	dl1.Color = XMFLOAT3(0.5f, 0.5f, 0.5f);
-	dl1.Direction = XMFLOAT3(0.25f, -0.15f, 0.5f);
-	dl1.Intensity = 0.5f;
+	dl1.Direction = XMFLOAT3(0.25f, -0.55f, 0.5f);
+	dl1.Intensity = 1.0f;
 
 	Light dl2;
 	dl2.Type = LIGHT_TYPE_POINT;
@@ -221,6 +225,9 @@ void Game::LoadAssets()
 	particlePixelShader = std::make_shared<SimplePixelShader>(device, context);
 	particlePixelShader->LoadShaderFile(L"ParticlePixelShader.cso");
 
+	//Load Water Shaders
+	waterPixelShader = std::make_shared<SimplePixelShader>(device, context);
+	waterPixelShader->LoadShaderFile(L"WaterPixelShader.cso");
 
 #pragma endregion
 
@@ -276,6 +283,8 @@ void Game::LoadAssets()
 	ID3D11ShaderResourceView* metal_r_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\grimy-metal_r.png", 0, &metal_r_SRV);
 
+	ID3D11ShaderResourceView* water_norm;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\water_n.png", 0, &water_norm);
 
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\fireParticle.jpg", 0, &particleTexture);
 
@@ -292,6 +301,7 @@ void Game::LoadAssets()
 	marbleWallMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleWallSRV, marbleWall_s_SRV, marbleWall_n_SRV, sampler);
 	spaceshipMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, spaceshipSRV, spaceship_m_SRV, spaceship_m_SRV, spaceship_n_SRV, sampler);
 	skyMaterial = std::make_shared<Material>(skyVertexShader, skyPixelShader, skySRV, nullptr, nullptr, sampler);
+	waterMaterial = std::make_shared<Material>(vertexShader, waterPixelShader, nullptr, nullptr, water_norm, sampler);
 
 	// Rasterizer and DepthStencil states for the skybox
 	D3D11_RASTERIZER_DESC skyRD = {};
@@ -429,6 +439,7 @@ void Game::CreateBasicGeometry()
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
 	meshes[3] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\arch.obj", device);
 	meshes[4] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\spaceship.obj", device);
+	meshes[5] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\plane.obj", device);
 
 	// Create basic test geometry
 	for (int i = 0; i < 10; i++)
@@ -477,6 +488,12 @@ void Game::CreateBasicGeometry()
 	gameEntities[22]->transform->SetPosition(-3.6f, 0.44f, -2.5f);
 	gameEntities[22]->transform->SetScale(0.0023f, 0.0023f, 0.0023f);
 	gameEntities[22]->transform->SetRotation(0.22f, -0.8f, 0.0f);
+
+	//create the water
+	flatWater = new GameEntity(meshes[5], waterMaterial);
+	flatWater->transform->SetPosition(0.0f, -1.0f, -7.5f);
+	flatWater->transform->SetScale(100.0f, 100.0f, 100.0f);
+	flatWater->transform->SetRotation(0.0f, 0.0f, 0.0f);
 }
 
 
@@ -606,6 +623,8 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 #pragma endregion
 
+	DrawWater(totalTime);
+
 	// Draw the sky after all other entities have been drawn
 	DrawSky();
 
@@ -663,6 +682,47 @@ void Game::DrawSky()
 	// Reset the render states
 	context->RSSetState(0);
 	context->OMSetDepthStencilState(0, 0);
+}
+
+void Game::DrawWater(float totalTime)
+{
+	// If the world matrix is outdated, recalculate it
+	if (flatWater->transform->matrixOutdated)
+		flatWater->transform->CalculateWorldMatrix();
+
+	// Pass the appropriate lights to the material's pixel shader
+	Light goodLights[128];
+	int lightCount = 0;
+	for (size_t i = 0; i < lights.size(); i++)
+	{
+		if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
+		{
+			goodLights[lightCount] = lights[i];
+			lightCount++;
+		}
+	}
+
+	flatWater->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
+	flatWater->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
+	flatWater->material->GetPixelShader()->SetData("scale", &flatWater->transform->GetScale(), sizeof(XMFLOAT3));
+	flatWater->material->GetPixelShader()->SetData("totalTime", &totalTime, sizeof(float));
+	flatWater->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
+
+	flatWater->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
+
+	// Set buffers in the input assembler
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+
+	ID3D11Buffer* vertexBuffer = flatWater->mesh->GetVertexBuffer();
+	context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+	context->IASetIndexBuffer(flatWater->mesh->GetIndexBuffer(), DXGI_FORMAT_R32_UINT, 0);
+
+	flatWater->material->GetPixelShader()->SetSamplerState("basicSampler", flatWater->material->GetSamplerState());
+	flatWater->material->GetPixelShader()->SetShaderResourceView("normalTexture", flatWater->material->GetNormal());
+
+	context->DrawIndexed(flatWater->mesh->GetIndexCount(), 0, 0);
+
 }
 
 
