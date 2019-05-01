@@ -3,7 +3,8 @@ cbuffer Data : register(b0)
 {
 	float pixelWidth;
 	float pixelHeight;
-	int blurAmount;
+	float blurV;
+	float blurH;
 }
 
 
@@ -17,18 +18,49 @@ struct VertexToPixel
 
 // Textures and such
 Texture2D Pixels		: register(t0);
-Texture2D ExtractedPixels		: register(s0);
 SamplerState Sampler	: register(s0);
 
 
 // Entry point for this pixel shader
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	
-	// Track the total color and samples
-	float4 totalColor = float4(0,0,0,0);
-	uint numSamples = 0;
+	//Fixed 5-point guassian blur - vertical
 
+	float4 totalColor = Pixels.Sample(Sampler, input.uv);
+	float blurAmount = 5;
+	int numSamples = 1;
+	float2 uv;
+
+	if (blurV != 0)
+	{
+		for (int y = -blurAmount; y <= blurAmount; y += 1)
+		{
+			uv = input.uv + float2(0, y * pixelHeight);
+			totalColor += Pixels.Sample(Sampler, uv);
+
+			numSamples++;
+		}
+	}
+
+	if (blurH != 0)
+	{
+		for (int x = -blurAmount; x <= blurAmount; x += 1)
+		{
+			uv = input.uv + float2(x * pixelWidth, 0);
+			totalColor += Pixels.Sample(Sampler, uv);
+
+			numSamples++;
+		}
+	}
+
+
+
+	return totalColor / numSamples ;
+	
+
+}
+
+/*
 	// Loop and sample adjacent  pixels
 	for (int y = -blurAmount; y <= blurAmount; y += 1)
 	{
@@ -39,8 +71,4 @@ float4 main(VertexToPixel input) : SV_TARGET
 
 			numSamples++;
 		}
-	}
-	return (totalColor/numSamples + Pixels.Sample(Sampler, input.uv));
-	
-
-}
+	}*/

@@ -48,8 +48,14 @@ Game::~Game()
 	sampler->Release();
 
 	//Release Post-Process resources
-	bloomRTV->Release();
-	bloomSRV->Release();
+	bloom1RTV->Release();
+	bloom1SRV->Release();
+
+	bloom2RTV->Release();
+	bloom2SRV->Release();
+
+	motionBlurRTV->Release();
+	motionBlurSRV->Release();
 
 
 	delete player;
@@ -76,6 +82,11 @@ void Game::Init()
 {
 	camera = new Camera();
 	player = new FPSController(camera);
+
+	//Initialize cursor settings
+	ShowCursor(false);
+	prevMousePos.x = width / 2;
+	prevMousePos.y = height / 2;
 
 	rotating = false;
 	printf("WASD to move. Space/X for vertical movement. Click and drag to rotate.");
@@ -211,8 +222,14 @@ void Game::LoadAssets()
 	brightExtractPS = std::make_shared<SimplePixelShader>(device, context);
 	brightExtractPS->LoadShaderFile(L"BrightnessExtractPS.cso");
 
-	bloomBlurPS = std::make_shared<SimplePixelShader>(device, context);
-	bloomBlurPS->LoadShaderFile(L"BloomBlurPS.cso");
+	bloomBlurHPS = std::make_shared<SimplePixelShader>(device, context);
+	bloomBlurHPS->LoadShaderFile(L"BloomBlurHorizontalPS.cso");
+
+	bloomBlurVPS = std::make_shared<SimplePixelShader>(device, context);
+	bloomBlurVPS->LoadShaderFile(L"BloomBlurVerticalPS.cso");
+
+	motionBlurPS = std::make_shared<SimplePixelShader>(device, context);
+	motionBlurPS->LoadShaderFile(L"MotionBlurPS.cso");
 
 	// Load Particle shaders
 	particleVertexShader = std::make_shared<SimpleVertexShader>(device, context);
@@ -343,18 +360,26 @@ void Game::LoadAssets()
 	device->CreateShaderResourceView(ppTexture, &srvDesc, &postProcessSRV);
 
 	//Bloom resources
-	ID3D11Texture2D* bloomTexture;
-	device->CreateTexture2D(&textureDesc, 0, &bloomTexture);
-	device->CreateRenderTargetView(bloomTexture, &rtvDesc, &bloomRTV);
-	device->CreateShaderResourceView(bloomTexture, &srvDesc, &bloomSRV);
+	ID3D11Texture2D* bloomTexture1;
+	device->CreateTexture2D(&textureDesc, 0, &bloomTexture1);
+	device->CreateRenderTargetView(bloomTexture1, &rtvDesc, &bloom1RTV);
+	device->CreateShaderResourceView(bloomTexture1, &srvDesc, &bloom1SRV);
 
+	ID3D11Texture2D* bloomTexture2;
+	device->CreateTexture2D(&textureDesc, 0, &bloomTexture2);
+	device->CreateRenderTargetView(bloomTexture2, &rtvDesc, &bloom2RTV);
+	device->CreateShaderResourceView(bloomTexture2, &srvDesc, &bloom2SRV);
 
+	ID3D11Texture2D* motionBlurTexture;
+	device->CreateTexture2D(&textureDesc, 0, &motionBlurTexture);
+	device->CreateRenderTargetView(motionBlurTexture, &rtvDesc, &motionBlurRTV);
+	device->CreateShaderResourceView(motionBlurTexture, &srvDesc, &motionBlurSRV);
 
 	// We don't need the texture references 
 	ppTexture->Release();
-	bloomTexture->Release();
-
-
+	bloomTexture1->Release();
+	bloomTexture2->Release();
+	motionBlurTexture->Release();
 #pragma endregion
 
 #pragma region particles loading
@@ -503,6 +528,8 @@ void Game::Update(float deltaTime, float totalTime)
 	if (GetAsyncKeyState(VK_ESCAPE))
 		Quit();
 
+	
+
 	thrusterEmitter->Update(deltaTime, totalTime);
 	thrusterEmitter2->Update(deltaTime, totalTime);
 	thrusterEmitter3->Update(deltaTime, totalTime);
@@ -544,9 +571,12 @@ void Game::Draw(float deltaTime, float totalTime)
 	//POST PROCESS PRE-RENDER 
 	if (postProcessing)
 	{
-		
 		//Clear the post process texture
 		context->ClearRenderTargetView(postProcessRTV, color);
+		context->ClearRenderTargetView(bloom1RTV, color);
+		context->ClearRenderTargetView(bloom2RTV, color);
+		context->ClearRenderTargetView(motionBlurRTV, color);
+
 		// Set the post process RTV as the current render target
 		context->OMSetRenderTargets(1, &postProcessRTV, depthStencilView);
 	}
@@ -674,6 +704,7 @@ void Game::PostProcessing()
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	ID3D11ShaderResourceView* nullSRVs[16] = {};
 
 	// Deactivate vertex and index buffers
 	ID3D11Buffer* nothing = 0;
@@ -682,15 +713,15 @@ void Game::PostProcessing()
 
 	// Render a full-screen triangle using the post process shaders
 	postProcessVS->SetShader();
-
-#pragma region Bloom
-	//Set render target to first bloom texture -> Render texture with just the bright bits
-	context->OMSetRenderTargets(1, &bloomRTV, depthStencilView);
-
 	
+#pragma region Bloom
+
+	//Set render target to first bloom texture -> Render texture with just the bright bits
+	context->OMSetRenderTargets(1, &bloom1RTV, depthStencilView);
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	//Pixel shader that renders just the bright parts
-	brightExtractPS->SetFloat("Threshold", 0.65f);
+	brightExtractPS->SetFloat("Threshold", 0.8f);
 	brightExtractPS->SetShaderResourceView("Pixels", postProcessSRV);
 	brightExtractPS->SetSamplerState("Sampler", sampler);
 	brightExtractPS->CopyAllBufferData();
@@ -698,29 +729,58 @@ void Game::PostProcessing()
 
 	context->Draw(3, 0);
 
-	
-	//Set render target to back buffer-> Render texture with blur combined with original frame
-	context->OMSetRenderTargets(1, &backBufferRTV, 0);
-	
-	bloomBlurPS->SetShaderResourceView("Pixels", postProcessSRV);   //Unchanged frame texture
-	bloomBlurPS->SetShaderResourceView("ExtractedPixels", bloomSRV);   //Brightness-extracted frame texture
-	bloomBlurPS->SetSamplerState("Sampler", sampler);
-	bloomBlurPS->SetFloat("pixelWidth", 1.f / width);
-	bloomBlurPS->SetFloat("pixelHeight", 1.f / height);
-	bloomBlurPS->SetInt("blurAmount", 4);
-	bloomBlurPS->CopyAllBufferData();
-	bloomBlurPS->SetShader();
+	// Set render target to second bloom texture->Render texture with horizontal blur
+	context->OMSetRenderTargets(1, &bloom2RTV, depthStencilView);
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+	//Bloom first pass - Horizontal guass blur
+	bloomBlurHPS->SetShaderResourceView("BrightPixels", bloom1SRV);   //Brightness-extracted frame texture
+	bloomBlurHPS->SetSamplerState("Sampler", sampler);
+	bloomBlurHPS->SetFloat("pixelWidth", 1.f / width);
+	bloomBlurHPS->CopyAllBufferData();
+	bloomBlurHPS->SetShader();
+
+	context->Draw(3, 0);
+
+	// Set render target to motion blur texture->Render texture with full bloom blur
+	context->OMSetRenderTargets(1, &motionBlurRTV, depthStencilView);
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+	//Bloom second pass - vertical guass blur
+	bloomBlurVPS->SetShaderResourceView("Pixels", postProcessSRV);	     //Original rendered frame
+	bloomBlurVPS->SetShaderResourceView("ExtractedPixels", bloom2SRV);   //Horizontal blurred bloom texture
+	bloomBlurVPS->SetSamplerState("Sampler", sampler);
+	bloomBlurHPS->SetFloat("pixelHeight", 1.f / height);
+	bloomBlurVPS->CopyAllBufferData();
+	bloomBlurVPS->SetShader();
 
 	context->Draw(3, 0);
 
 
 #pragma endregion
 
+#pragma region Motion Blur
+	//Set render target to back buffer-> Render texture with blur combined with original frame
+	context->OMSetRenderTargets(1, &backBufferRTV, 0);
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
+	motionBlurPS->SetShaderResourceView("Pixels", motionBlurSRV);	//Bloom blurred texture
+	motionBlurPS->SetSamplerState("Sampler", sampler);
+	motionBlurPS->SetFloat("pixelWidth", 1.f / width);
+	motionBlurPS->SetFloat("pixelHeight", 1.f / height);
+	motionBlurPS->CopyAllBufferData();
+	motionBlurPS->SetShader();
+
+
+	context->Draw(3, 0);
+
+	motionBlurPS->SetFloat("blurV", 0);
+	motionBlurPS->SetFloat("blurH", 0);
+#pragma endregion
 
 	// Unbind all pixel shader SRVs
-	ID3D11ShaderResourceView* nullSRVs[16] = {};
 	context->PSSetShaderResources(0, 16, nullSRVs);
+	
 }
 
 
@@ -755,15 +815,28 @@ void Game::OnMouseUp(WPARAM buttonState, int x, int y)
 
 void Game::OnMouseMove(WPARAM buttonState, int x, int y)
 {
-	if (rotating)
-	{
-		float pixelToRads = 0.003f;
 
-		float xAngle = ((float)y - (float)prevMousePos.y) * pixelToRads;
-		float yAngle = ((float)x - (float)prevMousePos.x) * pixelToRads;
+	float pixelToRads = 0.003f;
 
-		camera->RotateCamera(xAngle, yAngle);
-	}
+	float xAngle = ((float)y - (float)prevMousePos.y) * pixelToRads;
+	float yAngle = ((float)x - (float)prevMousePos.x) * pixelToRads;
+
+
+
+	motionBlurPS->SetFloat("blurV", xAngle);
+	motionBlurPS->SetFloat("blurH", yAngle);
+
+	
+	camera->RotateCamera(xAngle, yAngle);
+
+	
+
+
+	
+
+
+
+
 
 	// Save Mouse Position
 	prevMousePos.x = x;

@@ -108,12 +108,21 @@ private:
 #pragma region Bloom
 	//Bloom Pixel Shaders
 	std::shared_ptr<SimplePixelShader> brightExtractPS;
-	std::shared_ptr<SimplePixelShader> bloomBlurPS;
-
+	std::shared_ptr<SimplePixelShader> bloomBlurHPS;
+	std::shared_ptr<SimplePixelShader> bloomBlurVPS;
+	std::shared_ptr<SimplePixelShader> motionBlurPS;
 
 	//Render target and tetxure for bloom blur
-	ID3D11RenderTargetView* bloomRTV;
-	ID3D11ShaderResourceView* bloomSRV;
+	ID3D11RenderTargetView* bloom1RTV;
+	ID3D11ShaderResourceView* bloom1SRV;
+
+	//Render target and tetxure for bloom blur 2
+	ID3D11RenderTargetView* bloom2RTV;
+	ID3D11ShaderResourceView* bloom2SRV;
+
+	//Render target and tetxure for motion blur
+	ID3D11RenderTargetView* motionBlurRTV;
+	ID3D11ShaderResourceView* motionBlurSRV;
 
 
 #pragma endregion
