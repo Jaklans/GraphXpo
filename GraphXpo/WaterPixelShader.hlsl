@@ -170,8 +170,10 @@ float4 main(VertexToPixel input) : SV_TARGET
 	
 	//Transform the normal from normal map to world space
 	input.normal = mul(avgNorm, TBN);
-
+	//input.normal = float3(0, 1, 0);
 	//water color = reflection + refraction + water tint
+
+	float fresnel = Fresnel(normalize(cameraPos - input.worldPos), input.normal); //approximate, but better than basic dot product
 
 	//get refraction data
 	float2 coords = float2(input.position.x / width, input.position.y / height);
@@ -180,12 +182,12 @@ float4 main(VertexToPixel input) : SV_TARGET
 	refraction.a = 1;
 	
 	//get reflection data
-	float3 worldReflection = normalize(reflect(normalize(input.worldPos - cameraPos), input.normal));
+	float3 worldReflection = normalize(reflect(normalize(input.worldPos - cameraPos), lerp(float3(0, 1, 0), input.normal,saturate((fresnel - 0.05) * 1000))));
 
 	matrix viewProj = mul(view, projection);
 
 	float4 reflection = float4(0,0,0,0);
-
+	
 	float startDepth = mul((input.worldPos - cameraPos), view).z / 99.9f;
 	float4 prevRayPos = float4(input.worldPos, 1);
 	float previousDepth = startDepth;
@@ -204,11 +206,14 @@ float4 main(VertexToPixel input) : SV_TARGET
 		int winY = (int)round(((1 - rayPosScreenSpace.y) / 2.0) * height);
 		float2 rayPosUV = float2(winX / (float)width, winY / (float)height);
 
-		float4 pixel = sceneSansWater.Sample(basicSampler, rayPosUV);
+		float4 pixel = sceneSansWater.Sample(clampedSampler, rayPosUV);
 		
 		float4 maskPixel = mask.Sample(basicSampler, rayPosUV); //make sure that the pixel being considered for reflection is not water (or below it)
 
-		if (depth > pixel.a && previousDepth < pixel.a && maskPixel.a == 0) 
+		if (pixel.a == 0) //sampled off screen
+			break;
+
+		if ((depth > pixel.a && previousDepth < pixel.a && maskPixel.a == 0)) 
 		{
 			//refine the ray hit detection with a binary search
 			float4 MinRayPos = prevRayPos;
@@ -238,13 +243,10 @@ float4 main(VertexToPixel input) : SV_TARGET
 			reflection = pixel;
 			break;
 		}
-
 		previousDepth = depth;
 		prevRayPos = rayPos;
 	}
 
-	float fresnel = Fresnel(normalize(cameraPos - input.worldPos), input.normal); //approximate, but better than basic dot product
-	
 	float4 waterColor = float4((210.0/255.0), (247.0/255.0), (255.0/255.0), 1); //the tint of the water itself
 
 	float4 surfaceColor = lerp(refraction,reflection,fresnel) * waterColor;

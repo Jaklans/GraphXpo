@@ -867,12 +867,26 @@ void Game::Draw(float deltaTime, float totalTime)
 		// Pass the appropriate lights to the material's pixel shader
 		Light goodLights[128];
 		int lightCount = 0;
-		for (size_t i = 0; i < lights.size(); i++)
+		for (size_t j = 0; j < lights.size(); j++)
 		{
-			if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
+			if (lights[j].Type == LIGHT_TYPE_DIR)
 			{
-				goodLights[lightCount] = lights[i];
+				goodLights[lightCount] = lights[j];
 				lightCount++;
+			}
+			if (lights[j].Type == LIGHT_TYPE_POINT)
+			{
+				XMVECTOR pos = XMLoadFloat3(&gameEntities[i]->transform->GetPosition());
+				XMVECTOR lightPos = XMLoadFloat3(&lights[j].Position);
+				
+				float distance = 0.0f;
+				XMStoreFloat(&distance, XMVector3Length(XMVectorSubtract(pos, lightPos)));
+
+				if (distance <= lights[j].Range)
+				{
+					goodLights[lightCount] = lights[j];
+					lightCount++;
+				}
 			}
 		}
 
@@ -1012,12 +1026,26 @@ void Game::DrawWater(float totalTime)
 	// Pass the appropriate lights to the material's pixel shader
 	Light goodLights[128];
 	int lightCount = 0;
-	for (size_t i = 0; i < lights.size(); i++)
+	for (size_t j = 0; j < lights.size(); j++)
 	{
-		if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
+		if (lights[j].Type == LIGHT_TYPE_DIR)
 		{
-			goodLights[lightCount] = lights[i];
+			goodLights[lightCount] = lights[j];
 			lightCount++;
+		}
+		if (lights[j].Type == LIGHT_TYPE_POINT)
+		{
+			XMVECTOR pos = XMLoadFloat3(&flatWater->transform->GetPosition());
+			XMVECTOR lightPos = XMLoadFloat3(&lights[j].Position);
+
+			float distance = 0.0f;
+			XMStoreFloat(&distance, XMVector3Length(XMVectorSubtract(pos, lightPos)));
+
+			if (distance <= lights[j].Range)
+			{
+				goodLights[lightCount] = lights[j];
+				lightCount++;
+			}
 		}
 	}
 

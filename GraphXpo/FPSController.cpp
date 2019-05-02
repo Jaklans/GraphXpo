@@ -45,26 +45,26 @@ void FPSController::HandleInput(float deltaTime)
 	//move the player
 	if (GetAsyncKeyState('W') & 0x8000)  //forward
 	{
-		transform->TranslateForward(deltaTime * 4.0f);
+		transform->TranslateForward(deltaTime * 2.0f);
 	}
 	else if (GetAsyncKeyState('S') & 0x8000) //backwards
 	{
-		transform->TranslateForward(deltaTime * -4.0f);
+		transform->TranslateForward(deltaTime * -2.0f);
 	}
 	if (GetAsyncKeyState('D') & 0x8000) //right
 	{
-		transform->TranslateLocal(deltaTime * 4.0f, 0, 0);
+		transform->TranslateLocal(deltaTime * 2.0f, 0, 0);
 	}
 	else if (GetAsyncKeyState('A') & 0x8000) //left
 	{
-		transform->TranslateLocal(deltaTime * -4.0f, 0, 0);
+		transform->TranslateLocal(deltaTime * -2.0f, 0, 0);
 	}
 	if (GetAsyncKeyState('X') & 0x8000) //up
 	{
-		transform->TranslateLocal(0.0f, deltaTime * 4.0f, 0);
+		transform->TranslateLocal(0.0f, deltaTime * 2.0f, 0);
 	}
 	if (GetAsyncKeyState('C') & 0x8000) //up
 	{
-		transform->TranslateLocal(0.0f, deltaTime * -4.0f, 0);
+		transform->TranslateLocal(0.0f, deltaTime * -2.0f, 0);
 	}
 }
