@@ -94,8 +94,8 @@ void Game::Init()
 	Light dl1;
 	dl1.Type = LIGHT_TYPE_DIR;
 	dl1.Color = XMFLOAT3(0.5f, 0.5f, 0.5f);
-	dl1.Direction = XMFLOAT3(0.25f, -0.55f, 0.5f);
-	dl1.Intensity = 1.0f;
+	dl1.Direction = XMFLOAT3(0.25f, -1.55f, 0.5f);
+	dl1.Intensity = 0.5f;
 
 	Light dl2;
 	dl2.Type = LIGHT_TYPE_POINT;
@@ -191,6 +191,21 @@ void Game::LoadAssets()
 
 	device->CreateSamplerState(&samplerDesc, &sampler);
 
+	D3D11_SAMPLER_DESC clampedDesc = {};
+
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.BorderColor[0] = 0;
+	samplerDesc.BorderColor[1] = 0;
+	samplerDesc.BorderColor[2] = 0;
+	samplerDesc.BorderColor[3] = 1;
+	samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	samplerDesc.MaxAnisotropy = 16;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	device->CreateSamplerState(&samplerDesc, &clampedSampler);
+
 #pragma region shader loading
 	vertexShader = std::make_shared<SimpleVertexShader>(device, context);
 	vertexShader->LoadShaderFile(L"VertexShader.cso");
@@ -228,6 +243,13 @@ void Game::LoadAssets()
 	//Load Water Shaders
 	waterPixelShader = std::make_shared<SimplePixelShader>(device, context);
 	waterPixelShader->LoadShaderFile(L"WaterPixelShader.cso");
+
+	refractiveMaskPS = std::make_shared<SimplePixelShader>(device, context);
+	refractiveMaskPS->LoadShaderFile(L"RefractiveMaskPS.cso");
+
+	combineRefractionPS = std::make_shared<SimplePixelShader>(device, context);
+	combineRefractionPS->LoadShaderFile(L"CombineRefractionPS.cso");
+	
 
 #pragma endregion
 
@@ -393,6 +415,30 @@ void Game::LoadAssets()
 
 #pragma endregion
 
+#pragma region Water loading
+
+
+	//General Post Process render texture
+	ID3D11Texture2D* nonRefractiveTexture;
+	device->CreateTexture2D(&textureDesc, 0, &nonRefractiveTexture);
+	device->CreateRenderTargetView(nonRefractiveTexture, &rtvDesc, &nonRefractiveRTV);
+	device->CreateShaderResourceView(nonRefractiveTexture, &srvDesc, &nonRefractiveSRV);
+
+	ID3D11Texture2D* refractiveTexture;
+	device->CreateTexture2D(&textureDesc, 0, &refractiveTexture);
+	device->CreateRenderTargetView(refractiveTexture, &rtvDesc, &refractiveRTV);
+	device->CreateShaderResourceView(refractiveTexture, &srvDesc, &refractiveSRV);
+
+	ID3D11Texture2D* refractiveMaskTexture;
+	device->CreateTexture2D(&textureDesc, 0, &refractiveMaskTexture);
+	device->CreateRenderTargetView(refractiveMaskTexture, &rtvDesc, &refractiveMaskRTV);
+	device->CreateShaderResourceView(refractiveMaskTexture, &srvDesc, &refractiveMaskSRV);
+
+	// We don't need the texture references 
+	nonRefractiveTexture->Release();
+	refractiveTexture->Release();
+
+#pragma endregion
 }
 
 
@@ -491,7 +537,7 @@ void Game::CreateBasicGeometry()
 
 	//create the water
 	flatWater = new GameEntity(meshes[5], waterMaterial);
-	flatWater->transform->SetPosition(0.0f, -1.0f, -7.5f);
+	flatWater->transform->SetPosition(0.0f, 0.5f, -7.5f);
 	flatWater->transform->SetScale(100.0f, 100.0f, 100.0f);
 	flatWater->transform->SetRotation(0.0f, 0.0f, 0.0f);
 }
@@ -548,7 +594,7 @@ void Game::Update(float deltaTime, float totalTime)
 void Game::Draw(float deltaTime, float totalTime)
 {
 	// Background color
-	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 	// Clear the render target and depth buffer
 	context->ClearRenderTargetView(backBufferRTV, color);
@@ -558,16 +604,11 @@ void Game::Draw(float deltaTime, float totalTime)
 		1.0f,
 		0);
 
-	//POST PROCESS PRE-RENDER 
-	if (postProcessing)
-	{
-		
-		//Clear the post process texture
-		context->ClearRenderTargetView(postProcessRTV, color);
-		// Set the post process RTV as the current render target
-		context->OMSetRenderTargets(1, &postProcessRTV, depthStencilView);
-	}
 	
+	//render all non-refractive elements to a texture
+	context->ClearRenderTargetView(nonRefractiveRTV, color);
+	context->OMSetRenderTargets(1, &nonRefractiveRTV, depthStencilView);
+
 #pragma region main draw
 	// Game Entity Meshes
 	for (size_t i = 0; i < 23; i++)
@@ -593,7 +634,7 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
 
-		gameEntities[i]->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
+		
 
 		// Set buffers in the input assembler
 		//  - Do this ONCE PER OBJECT you're drawing, since each object might
@@ -609,7 +650,9 @@ void Game::Draw(float deltaTime, float totalTime)
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("diffuseTexture", gameEntities[i]->material->GetDiffuse());
 		gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("normalTexture", gameEntities[i]->material->GetNormal());
 
-		if (gameEntities[i]->material->GetSpecular() == nullptr) //non-pbr
+		gameEntities[i]->material->GetPixelShader()->SetMatrix4x4("view", camera->GetViewMatrix());
+
+		if (gameEntities[i]->material->GetSpecular() != nullptr) //non-pbr
 		{
 			gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("specularTexture", gameEntities[i]->material->GetSpecular());
 		}
@@ -618,6 +661,8 @@ void Game::Draw(float deltaTime, float totalTime)
 			gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("metallicTexture", gameEntities[i]->material->GetMetalness());
 			gameEntities[i]->material->GetPixelShader()->SetShaderResourceView("roughnessTexture", gameEntities[i]->material->GetRoughness());
 		}
+
+		gameEntities[i]->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
 
 		context->DrawIndexed(gameEntities[i]->mesh->GetIndexCount(), 0, 0);
 	}
@@ -686,9 +731,35 @@ void Game::DrawSky()
 
 void Game::DrawWater(float totalTime)
 {
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
 	// If the world matrix is outdated, recalculate it
 	if (flatWater->transform->matrixOutdated)
 		flatWater->transform->CalculateWorldMatrix();
+
+
+	//first, draw the water's shape into the alpha channel of the refractive mask
+	context->ClearRenderTargetView(refractiveMaskRTV, color);
+	context->OMSetRenderTargets(1, &refractiveMaskRTV, depthStencilView);
+
+	// Set buffers in the input assembler
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+
+	ID3D11Buffer* vertexBuffer = flatWater->mesh->GetVertexBuffer();
+	context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+	context->IASetIndexBuffer(flatWater->mesh->GetIndexBuffer(), DXGI_FORMAT_R32_UINT, 0);
+
+	flatWater->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
+	refractiveMaskPS->CopyAllBufferData();
+	refractiveMaskPS->SetShader();
+
+	context->DrawIndexed(flatWater->mesh->GetIndexCount(), 0, 0);
+
+	//next, draw water into a refractive texture
+
+	context->ClearRenderTargetView(refractiveRTV, color);
+	context->OMSetRenderTargets(1, &refractiveRTV, NULL);
 
 	// Pass the appropriate lights to the material's pixel shader
 	Light goodLights[128];
@@ -707,22 +778,61 @@ void Game::DrawWater(float totalTime)
 	flatWater->material->GetPixelShader()->SetData("scale", &flatWater->transform->GetScale(), sizeof(XMFLOAT3));
 	flatWater->material->GetPixelShader()->SetData("totalTime", &totalTime, sizeof(float));
 	flatWater->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
+	flatWater->material->GetPixelShader()->SetData("width", &width, sizeof(int));
+	flatWater->material->GetPixelShader()->SetData("height", &height, sizeof(int));
+
+	flatWater->material->GetPixelShader()->SetMatrix4x4("view", camera->GetViewMatrix());
+	flatWater->material->GetPixelShader()->SetMatrix4x4("projection", camera->GetProjectionMatrix());
+
+	flatWater->material->GetPixelShader()->SetSamplerState("basicSampler", flatWater->material->GetSamplerState());
+	flatWater->material->GetPixelShader()->SetSamplerState("clampedSampler", clampedSampler);
+	flatWater->material->GetPixelShader()->SetShaderResourceView("normalTexture", flatWater->material->GetNormal());
+	flatWater->material->GetPixelShader()->SetShaderResourceView("sceneSansWater", nonRefractiveSRV);
+	flatWater->material->GetPixelShader()->SetShaderResourceView("mask", refractiveMaskSRV);
 
 	flatWater->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
 
-	// Set buffers in the input assembler
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-
-	ID3D11Buffer* vertexBuffer = flatWater->mesh->GetVertexBuffer();
-	context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-	context->IASetIndexBuffer(flatWater->mesh->GetIndexBuffer(), DXGI_FORMAT_R32_UINT, 0);
-
-	flatWater->material->GetPixelShader()->SetSamplerState("basicSampler", flatWater->material->GetSamplerState());
-	flatWater->material->GetPixelShader()->SetShaderResourceView("normalTexture", flatWater->material->GetNormal());
-
 	context->DrawIndexed(flatWater->mesh->GetIndexCount(), 0, 0);
 
+	//combine the refractive and non-refractive textures
+
+	if (postProcessing)
+	{
+		//Clear the post process texture
+		context->ClearRenderTargetView(postProcessRTV, color);
+		// Set the post process RTV as the current render target
+		context->OMSetRenderTargets(1, &postProcessRTV, depthStencilView);
+	}
+	else
+	{
+		context->OMSetRenderTargets(1, &backBufferRTV, 0);
+	}
+
+	// Deactivate vertex and index buffers
+	ID3D11Buffer* nothing = 0;
+	context->IASetVertexBuffers(0, 1, &nothing, &stride, &offset);
+	context->IASetIndexBuffer(0, DXGI_FORMAT_R32_UINT, 0);
+
+	// Render a full-screen triangle using the post process shaders
+	postProcessVS->SetShader();
+
+	//Pixel shader that renders just the bright parts
+	combineRefractionPS->SetShaderResourceView("nonRefractive", nonRefractiveSRV);
+	combineRefractionPS->SetShaderResourceView("refractive", refractiveSRV);
+	combineRefractionPS->SetShaderResourceView("mask", refractiveMaskSRV);
+	combineRefractionPS->SetSamplerState("Sampler", sampler);
+	combineRefractionPS->CopyAllBufferData();
+	combineRefractionPS->SetShader();
+
+	float blend[4] = { 1,1,1,1 };
+	context->OMSetBlendState(particleBlendState, blend, 0xffffffff);	// Additive blending
+	context->OMSetDepthStencilState(particleDepthStencilState, 0);
+	context->Draw(3, 0);
+
+	// Reset states for drawing the sky
+	context->OMSetBlendState(0, blend, 0xffffffff);
+	context->OMSetDepthStencilState(0, 0);
+	context->RSSetState(0);
 }
 
 

@@ -73,6 +73,8 @@ private:
 	std::shared_ptr<SimplePixelShader> pixelShader;
 	std::shared_ptr<SimplePixelShader> pbrPixelShader;
 	std::shared_ptr<SimplePixelShader> waterPixelShader;
+	std::shared_ptr<SimplePixelShader> refractiveMaskPS;
+	std::shared_ptr<SimplePixelShader> combineRefractionPS;
 
 	// The matrices to go from model space to screen space
 	DirectX::XMFLOAT4X4 worldMatrix;
@@ -110,6 +112,8 @@ private:
 	ID3D11RenderTargetView* postProcessRTV;		// Allows us to render to a texture
 	ID3D11ShaderResourceView* postProcessSRV;	// Allows us to sample from the same texture
 
+	
+
 #pragma region Bloom
 	//Bloom Pixel Shaders
 	std::shared_ptr<SimplePixelShader> brightExtractPS;
@@ -123,5 +127,19 @@ private:
 
 #pragma endregion
 
+
+	//Refraction assets
+	ID3D11RenderTargetView* nonRefractiveRTV;
+	ID3D11ShaderResourceView* nonRefractiveSRV;
+
+	ID3D11RenderTargetView* refractiveRTV;
+	ID3D11ShaderResourceView* refractiveSRV;
+
+	ID3D11RenderTargetView* refractiveMaskRTV;
+	ID3D11ShaderResourceView* refractiveMaskSRV;
+
+	ID3D11SamplerState* clampedSampler;
+
+	
 };
 

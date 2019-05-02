@@ -20,8 +20,10 @@ cbuffer externalData : register(b0)
 	Light lights[MAX_LIGHTS];
 
 	int lightCount;
-
+	int isRefractive;
 	float3 cameraPos;
+
+	matrix view;
 };
 
 Texture2D diffuseTexture : register(t0);
@@ -153,6 +155,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float4 finalColor = surfaceColor * float4(lightColor,1); //apply lighting to the sampled surface color
 
 	finalColor = pow(finalColor, 1 / 2.2); //gamma correct the final color
+
+	finalColor.a = mul((input.worldPos - cameraPos), view).z / 99.9f;
 
 	return finalColor;
 }
