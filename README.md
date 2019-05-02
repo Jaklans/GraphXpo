@@ -6,9 +6,12 @@ A DirectX 11 graphics showcase.
 
 - Normal Mapping
 - Direct PBR
-- Skybox
+- Skyboxes
 - Bloom
 - Particles
+- Screen Space Reflections
+- Refraction
+- Motion Blur
 
 ### Attributions
 [Skybox Texture](http://www.humus.name/index.php?page=Textures&ID=18)
