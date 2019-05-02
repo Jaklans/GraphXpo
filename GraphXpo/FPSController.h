@@ -15,6 +15,7 @@ public:
 	///</summary>
 	FPSController(std::shared_ptr<Mesh> const& meshObj, std::shared_ptr<Material> const& materialObj, Camera* fpsCam);
 
+	~FPSController();
 	///<summary>
 	///Upadtes transforms based on player input.
 	///</summary>

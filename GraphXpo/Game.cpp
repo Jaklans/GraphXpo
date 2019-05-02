@@ -33,7 +33,7 @@ Game::Game(HINSTANCE hInstance)
 	CreateConsoleWindow(500, 120, 32, 120);
 	printf("Console window created successfully.  Feel free to printf() here.\n");
 #endif
-	
+
 }
 
 Game::~Game()
@@ -49,10 +49,11 @@ Game::~Game()
 		delete gameEntities[i];
 	}
 
-
+	delete directionalLight;
 	delete flatWater;
 
 	sampler->Release();
+	clampedSampler->Release();
 
 	//Release Post-Process resources
 	bloom1RTV->Release();
@@ -80,6 +81,20 @@ Game::~Game()
 	// Release sky resources
 	skyDepthStencilState->Release();
 	skyRasterizerState->Release();
+
+	// Release water resources
+	nonRefractiveRTV->Release();
+	nonRefractiveSRV->Release();
+	refractiveRTV->Release();
+	refractiveSRV->Release();
+	refractiveMaskRTV->Release();
+	refractiveMaskSRV->Release();
+
+	// Release shadow resources
+	shadowDSV->Release();
+	shadowSRV->Release();
+	shadowSampler->Release();
+	shadowRasterizer->Release();
 }
 
 // --------------------------------------------------------
@@ -106,55 +121,47 @@ void Game::Init()
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//set up the directional lights
-	Light dl1;
-	dl1.Type = LIGHT_TYPE_DIR;
-	dl1.Color = XMFLOAT3(0.5f, 0.5f, 0.5f);
-	dl1.Direction = XMFLOAT3(0.25f, -1.55f, 0.5f);
-	dl1.Intensity = 0.5f;
+	directionalLight = new DirectionalLight();
+	directionalLight->Color = XMFLOAT4(0.5f, 0.5f, 0.5f,1);
+	directionalLight->Direction = XMFLOAT4(0.25f, -1.55f, 0.5f,1);
+	directionalLight->Intensity = 0.5f;
 
-	Light dl2;
-	dl2.Type = LIGHT_TYPE_POINT;
+	PointLight dl2;
 	dl2.Color = XMFLOAT3(0.4f, 0.2f, 0.4f);
 	dl2.Position = XMFLOAT3(0.0f, 1.0f, -2.5f);
 	dl2.Range = 5.0f;
 	dl2.Intensity = 3.0f;
 
-	Light dl3;
-	dl3.Type = LIGHT_TYPE_POINT;
+	PointLight dl3;
 	dl3.Color = XMFLOAT3(0.8f, 0.8f, 0.8f);
 	dl3.Position = XMFLOAT3(-3.3f, 0.5f, -2.8f);
 	dl3.Range = 3.0f;
 	dl3.Intensity = 2.0f;
 
-	Light dl4;
-	dl4.Type = LIGHT_TYPE_POINT;
+	PointLight dl4;
 	dl4.Color = XMFLOAT3(1.0f, 0.2f, 0.2f);
 	dl4.Position = XMFLOAT3(1.6f, 1.25f, 9.7f);
 	dl4.Range = 2.5f;
 	dl4.Intensity = 2.5f;
 
-	Light dl5;
-	dl5.Type = LIGHT_TYPE_POINT;
+	PointLight dl5;
 	dl5.Color = XMFLOAT3(0.2f, 0.2f, 1.0f);
 	dl5.Position = XMFLOAT3(-1.6f, 1.25f, 9.7f);
 	dl5.Range = 2.5f;
 	dl5.Intensity = 2.5f;
 
-	Light dl6;
-	dl6.Type = LIGHT_TYPE_POINT;
+	PointLight dl6;
 	dl6.Color = XMFLOAT3(0.62f, 0.62f, 0.62f);
 	dl6.Position = XMFLOAT3(0.0f, 1.85f, 9.7f);
 	dl6.Range = 2.0f;
 	dl6.Intensity = 1.5f;
 
-	Light dl7;
-	dl7.Type = LIGHT_TYPE_POINT;
+	PointLight dl7;
 	dl7.Color = XMFLOAT3(0.972f, 0.823f, 0.686f);
 	dl7.Position = XMFLOAT3(1.2f, -0.46f, 17.0f);
 	dl7.Range = 4.0f;
 	dl7.Intensity = 1.5f;
 
-	lights.emplace_back(dl1);
 	lights.emplace_back(dl2);
 	lights.emplace_back(dl3);
 	lights.emplace_back(dl4);
@@ -322,8 +329,10 @@ void Game::LoadAssets()
 
 	combineRefractionPS = std::make_shared<SimplePixelShader>(device, context);
 	combineRefractionPS->LoadShaderFile(L"CombineRefractionPS.cso");
-	
 
+	//Load Shadow Shader
+	shadowVS = std::make_shared<SimpleVertexShader>(device, context);
+	shadowVS->LoadShaderFile(L"ShadowVS.cso");
 #pragma endregion
 
 #pragma region general texture loading
@@ -557,6 +566,68 @@ void Game::LoadAssets()
 	refractiveMaskTexture->Release();
 
 #pragma endregion
+
+#pragma region shadow loading
+	// Create Shadow Map Textures
+	D3D11_TEXTURE2D_DESC shadowDesc = {};
+	shadowDesc.Width = shadowMapSize;
+	shadowDesc.Height = shadowMapSize;
+	shadowDesc.ArraySize = 1;
+	shadowDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	shadowDesc.CPUAccessFlags = 0;
+	shadowDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadowDesc.MipLevels = 1;
+	shadowDesc.MiscFlags = 0;
+	shadowDesc.SampleDesc.Count = 1;
+	shadowDesc.SampleDesc.Quality = 0;
+	shadowDesc.Usage = D3D11_USAGE_DEFAULT;
+
+	ID3D11Texture2D* shadowTexture;
+	device->CreateTexture2D(&shadowDesc, 0, &shadowTexture);
+
+	// Create the depth/stencil
+	D3D11_DEPTH_STENCIL_VIEW_DESC shadowDepthStencilDesc = {};
+	shadowDepthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	shadowDepthStencilDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	shadowDepthStencilDesc.Texture2D.MipSlice = 0;
+
+	device->CreateDepthStencilView(shadowTexture, &shadowDepthStencilDesc, &shadowDSV);
+
+	// Create the SRV for the shadow map
+	D3D11_SHADER_RESOURCE_VIEW_DESC shadowsrvDesc = {};
+	shadowsrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	shadowsrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shadowsrvDesc.Texture2D.MipLevels = 1;
+	shadowsrvDesc.Texture2D.MostDetailedMip = 0;
+	//srvDesc.Texture2DArray.ArraySize = x;
+	device->CreateShaderResourceView(shadowTexture, &shadowsrvDesc, &shadowSRV);
+
+	// Release the texture reference since we don't need it
+	shadowTexture->Release();
+
+	// Comparison Sampler for shadows
+	D3D11_SAMPLER_DESC shadowSampDesc = {};
+	shadowSampDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR; // Could be anisotropic
+	shadowSampDesc.ComparisonFunc = D3D11_COMPARISON_LESS;
+	shadowSampDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.BorderColor[0] = 1.0f;
+	shadowSampDesc.BorderColor[1] = 1.0f;
+	shadowSampDesc.BorderColor[2] = 1.0f;
+	shadowSampDesc.BorderColor[3] = 1.0f;
+	device->CreateSamplerState(&shadowSampDesc, &shadowSampler);
+
+	// Create a rasterizer state
+	D3D11_RASTERIZER_DESC shadowRastDesc = {};
+	shadowRastDesc.FillMode = D3D11_FILL_SOLID;
+	shadowRastDesc.CullMode = D3D11_CULL_BACK;
+	shadowRastDesc.DepthClipEnable = true;
+	shadowRastDesc.DepthBias = 1000; // Multiplied by (smallest possible value > 0 in depth buffer)
+	shadowRastDesc.DepthBiasClamp = 0.0f;
+	shadowRastDesc.SlopeScaledDepthBias = 1.0f;
+	device->CreateRasterizerState(&shadowRastDesc, &shadowRasterizer);
+#pragma endregion
 }
 
 
@@ -598,21 +669,21 @@ void Game::CreateMatrices()
 
 void Game::CreateBasicGeometry()
 {
-	meshes[0] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\cube.obj", device);
-	meshes[1] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\sphere.obj", device);
-	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
-	meshes[3] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\arch.obj", device);
-	meshes[4] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\spaceship.obj", device);
-	meshes[5] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\sharprock.obj", device);
-	meshes[6] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\log.obj", device);
-	meshes[7] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\plane.obj", device);
+	meshes[0] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\cube.obj", device);
+	meshes[1] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\sphere.obj", device);
+	meshes[2] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\torus.obj", device);
+	meshes[3] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\arch.obj", device);
+	meshes[4] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\spaceship.obj", device);
+	meshes[5] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\sharprock.obj", device);
+	meshes[6] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\log.obj", device);
+	meshes[7] = std::make_shared<Mesh>((char*)"..\\..\\Assets\\Models\\plane.obj", device);
 
 
 	// Create basic test geometry
 	for (int i = 0; i < 10; i++)
 	{
-		if(i % 2 == 0)
-			gameEntities[i] = new GameEntity(meshes[i%3], barkMaterial);
+		if (i % 2 == 0)
+			gameEntities[i] = new GameEntity(meshes[i % 3], barkMaterial);
 		else
 			gameEntities[i] = new GameEntity(meshes[i % 3], carpetMaterial);
 
@@ -623,7 +694,7 @@ void Game::CreateBasicGeometry()
 	// Create arches
 	for (int i = 0; i < 8; i++) {
 		gameEntities[i + 10] = new GameEntity(meshes[3], marbleMaterial);
-		gameEntities[i + 10]->transform->SetPosition(-5.7f + 3.8f * (i % 4), -0.82f, ((i/4) * 12.4f) - 6.2f);
+		gameEntities[i + 10]->transform->SetPosition(-5.7f + 3.8f * (i % 4), -0.82f, ((i / 4) * 12.4f) - 6.2f);
 		gameEntities[i + 10]->transform->SetScale(0.47f, 0.47f, 0.47f);
 	}
 
@@ -811,7 +882,7 @@ void Game::Update(float deltaTime, float totalTime)
 	if (GetAsyncKeyState(VK_ESCAPE))
 		Quit();
 
-	
+
 	thrusterEmitter->Update(deltaTime, totalTime);
 	thrusterEmitter2->Update(deltaTime, totalTime);
 	thrusterEmitter3->Update(deltaTime, totalTime);
@@ -821,21 +892,21 @@ void Game::Update(float deltaTime, float totalTime)
 	player->Update(deltaTime);
 
 	// Update each of the game objects
-	for (size_t i = 0; i < 10; i++) 
+	for (size_t i = 0; i < 10; i++)
 	{
 		XMFLOAT3 zAxis(0, 0, 1);
 		XMFLOAT3 yAxis(0, 1, 0);
 
-		gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
+		gameEntities[i]->transform->Translate(cos(4 * totalTime) * 0.05f * deltaTime, sin(4 * totalTime) * 0.05f * deltaTime, 0);
 		/*gameEntities[i]->transform->SetScale( //We should remove functionality of non uniform scaling
-			gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, 
-			gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, 
+			gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime,
+			gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime,
 			gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);*/
 		gameEntities[i]->transform->Rotate(zAxis, cos(2 * totalTime) * 0.5f * deltaTime);
 		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
 	}
 
-	lights[1].Position = XMFLOAT3(sin(totalTime/4) * 4.0f, 0.5f, 1.0f);
+	lights[1].Position = XMFLOAT3(sin(totalTime / 4) * 4.0f, 0.5f, 1.0f);
 }
 
 void Game::Draw(float deltaTime, float totalTime)
@@ -851,12 +922,14 @@ void Game::Draw(float deltaTime, float totalTime)
 		1.0f,
 		0);
 
+	DrawShadowMaps();
 
 	//render all non-refractive elements to a texture
 	context->ClearRenderTargetView(nonRefractiveRTV, color);
 	context->OMSetRenderTargets(1, &nonRefractiveRTV, depthStencilView);
 
 #pragma region main draw
+
 	// Game Entity Meshes
 	for (size_t i = 0; i < 44; i++)
 	{
@@ -864,24 +937,14 @@ void Game::Draw(float deltaTime, float totalTime)
 		if (gameEntities[i]->transform->matrixOutdated)
 			gameEntities[i]->transform->CalculateWorldMatrix();
 
+		int lightCount = lights.size();
+
 		// Pass the appropriate lights to the material's pixel shader
-		Light goodLights[128];
-		int lightCount = 0;
-		for (size_t i = 0; i < lights.size(); i++)
-		{
-			if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
-			{
-				goodLights[lightCount] = lights[i];
-				lightCount++;
-			}
-		}
-
-		gameEntities[i]->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
+		gameEntities[i]->material->GetPixelShader()->SetData("lights", lights.data(), sizeof(PointLight) * 6);
 		gameEntities[i]->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
-
+		gameEntities[i]->material->GetPixelShader()->SetData("dirLight", directionalLight, sizeof(DirectionalLight));
 		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
 
-		
 
 		// Set buffers in the input assembler
 		//  - Do this ONCE PER OBJECT you're drawing, since each object might
@@ -942,6 +1005,145 @@ void Game::Draw(float deltaTime, float totalTime)
 	context->OMSetRenderTargets(1, &backBufferRTV, depthStencilView);
 }
 
+//Draws a shadow map for every light
+void Game::DrawShadowMaps() {
+
+	//Set Viewport for shadows
+	D3D11_VIEWPORT vp = {};
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	vp.Width = (float)shadowMapSize;
+	vp.Height = (float)shadowMapSize;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	context->RSSetViewports(1, &vp);
+
+	//Set and clear the depth stencil view for shadows
+	context->OMSetRenderTargets(0, 0, shadowDSV);
+	context->ClearDepthStencilView(shadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	context->RSSetState(shadowRasterizer);
+
+	ID3D11Buffer* vertexBuffer;
+	ID3D11Buffer* indexBuffer;
+
+	XMFLOAT4X4 view;
+	XMFLOAT4X4 projection;
+
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+
+	shadowVS->SetShader();
+	context->PSSetShader(0, 0, 0);
+
+	//for each (Light l in lights) {
+	PointLight l = lights[0];
+	{
+#pragma region Cubemap
+		// +X
+		XMStoreFloat4x4(l.viewProjection + 0, XMMatrixTranspose( XMMatrixMultiply(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMVectorSet(1, 0, 0, 0),
+				XMVectorSet(0, 1, 0, 0)
+			),
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		)));
+		// -X
+		XMStoreFloat4x4(l.viewProjection + 1, XMMatrixTranspose(XMMatrixMultiply(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMVectorSet(-1, 0, 0, 0),
+				XMVectorSet(0, 1, 0, 0)
+			),
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		)));
+		// +Y
+		XMStoreFloat4x4(l.viewProjection + 2, XMMatrixTranspose(XMMatrixMultiply(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMVectorSet(0, 1, 0, 0),
+				XMVectorSet(1, 0, 0, 0)
+			),
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		)));
+		// -Y
+		XMStoreFloat4x4(l.viewProjection + 3, XMMatrixTranspose(XMMatrixMultiply(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMVectorSet(0, -1, 0, 0),
+				XMVectorSet(1, 0, 0, 0)
+			),
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		)));
+		// +Z
+		XMStoreFloat4x4(l.viewProjection + 4, XMMatrixTranspose(XMMatrixMultiply(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMVectorSet(0, 0, 1, 0),
+				XMVectorSet(0, 1, 0, 0)
+			),
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		)));
+		// -Z
+		XMStoreFloat4x4(l.viewProjection + 5, XMMatrixTranspose(XMMatrixMultiply(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMVectorSet(0, 0, -1, 0),
+				XMVectorSet(0, 1, 0, 0)
+			),
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		)));
+#pragma endregion
+
+		for each (GameEntity * g in gameEntities) {
+			vertexBuffer = g->mesh->GetVertexBuffer();
+			indexBuffer = g->mesh->GetIndexBuffer();
+
+			context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+			context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+			shadowVS->SetMatrix4x4("world", g->transform->GetWorldMatrix());
+
+			//for (int i = 0; i < 6; i++) {
+			{int i = 3;
+				shadowVS->SetMatrix4x4("viewProjection", l.viewProjection[i]);
+				shadowVS->CopyAllBufferData();
+
+				context->DrawIndexed(g->mesh->GetIndexCount(), 0, 0);
+			}
+		}
+	}
+
+	context->OMSetRenderTargets(1, &backBufferRTV, depthStencilView);
+	vp.Width = (float)width;
+	vp.Height = (float)height;
+	context->RSSetViewports(1, &vp);
+	context->RSSetState(0);
+}
 // Method for drawing the sky
 // This assumes that the cube mesh is meshes[0], might need to be changed at a later time
 void Game::DrawSky()
@@ -1009,20 +1211,10 @@ void Game::DrawWater(float totalTime)
 	context->ClearRenderTargetView(refractiveRTV, color);
 	context->OMSetRenderTargets(1, &refractiveRTV, NULL);
 
-	// Pass the appropriate lights to the material's pixel shader
-	Light goodLights[128];
-	int lightCount = 0;
-	for (size_t i = 0; i < lights.size(); i++)
-	{
-		if (lights[i].Type == LIGHT_TYPE_DIR || lights[i].Type == LIGHT_TYPE_POINT)
-		{
-			goodLights[lightCount] = lights[i];
-			lightCount++;
-		}
-	}
-
-	flatWater->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
+	int lightCount = lights.size();
+	flatWater->material->GetPixelShader()->SetData("lights", lights.data(), sizeof(PointLight) * 6);
 	flatWater->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
+	flatWater->material->GetPixelShader()->SetData("dirLight", &directionalLight, sizeof(DirectionalLight));
 	flatWater->material->GetPixelShader()->SetData("scale", &flatWater->transform->GetScale(), sizeof(XMFLOAT3));
 	flatWater->material->GetPixelShader()->SetData("totalTime", &totalTime, sizeof(float));
 	flatWater->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
@@ -1105,7 +1297,7 @@ void Game::PostProcessing()
 
 	// Render a full-screen triangle using the post process shaders
 	postProcessVS->SetShader();
-	
+
 #pragma region Bloom
 
 	//Set render target to first bloom texture -> Render texture with just the bright bits
@@ -1172,7 +1364,7 @@ void Game::PostProcessing()
 
 	// Unbind all pixel shader SRVs
 	context->PSSetShaderResources(0, 16, nullSRVs);
-	
+
 }
 
 

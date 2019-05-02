@@ -18,6 +18,11 @@ FPSController::FPSController(std::shared_ptr<Mesh> const& meshObj, std::shared_p
 	cam = fpsCam;
 }
 
+FPSController::~FPSController()
+{
+	delete transform;
+}
+
 ///<summary>
 ///Upadtes transforms based on player input.
 ///</summary>

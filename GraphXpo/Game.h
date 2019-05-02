@@ -14,7 +14,7 @@
 #include "FPSController.h"
 #include "Emitter.h"
 
-class Game 
+class Game
 	: public DXCore
 {
 
@@ -28,18 +28,19 @@ public:
 	void OnResize();
 	void Update(float deltaTime, float totalTime);
 	void Draw(float deltaTime, float totalTime);
+	void DrawShadowMaps();
 	void DrawSky();
 	void DrawWater(float totalTime);
 
 	// Overridden mouse input helper methods
-	void OnMouseDown (WPARAM buttonState, int x, int y);
-	void OnMouseUp	 (WPARAM buttonState, int x, int y);
-	void OnMouseMove (WPARAM buttonState, int x, int y);
-	void OnMouseWheel(float wheelDelta,   int x, int y);
+	void OnMouseDown(WPARAM buttonState, int x, int y);
+	void OnMouseUp(WPARAM buttonState, int x, int y);
+	void OnMouseMove(WPARAM buttonState, int x, int y);
+	void OnMouseWheel(float wheelDelta, int x, int y);
 private:
 
 	// Initialization helper methods - feel free to customize, combine, etc.
-	void LoadAssets(); 
+	void LoadAssets();
 	void CreateMatrices();
 	void CreateBasicGeometry();
 	void PostProcessing();
@@ -48,8 +49,9 @@ private:
 	FPSController* player;
 	bool rotating;
 
-	//lights
-	std::vector<Light> lights;
+	//Lights
+	DirectionalLight* directionalLight;
+	std::vector<PointLight> lights;
 
 	//Each mesh contains geometry data for drawing
 	std::shared_ptr<Mesh> meshes[8];
@@ -109,6 +111,14 @@ private:
 	Emitter* thrusterEmitter3;
 	Emitter* campfireEmitter;
 
+	// Shadows
+	int shadowMapSize = 1024;
+	ID3D11DepthStencilView* shadowDSV;
+	ID3D11ShaderResourceView* shadowSRV;
+	ID3D11SamplerState* shadowSampler;
+	ID3D11RasterizerState* shadowRasterizer;
+	std::shared_ptr<SimpleVertexShader> shadowVS;
+
 	//POST-PROCESSING RESOURCES
 
 	bool postProcessing;
@@ -119,7 +129,7 @@ private:
 	ID3D11RenderTargetView* postProcessRTV;		// Allows us to render to a texture
 	ID3D11ShaderResourceView* postProcessSRV;	// Allows us to sample from the same texture
 
-	
+
 
 #pragma region Bloom
 	//Bloom Pixel Shaders
@@ -156,6 +166,6 @@ private:
 
 	ID3D11SamplerState* clampedSampler;
 
-	
+
 };
 

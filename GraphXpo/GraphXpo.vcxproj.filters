@@ -38,7 +38,7 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="MotionBlurPS.hlsl">
-	      <Filter>Shaders</Filter>
+      <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="WaterPixelShader.hlsl">
       <Filter>Shaders</Filter>
@@ -47,6 +47,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="CombineRefractionPS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="ShadowVS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

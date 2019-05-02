@@ -41,11 +41,11 @@ private:
 	std::shared_ptr<SimpleVertexShader> vs;
 	std::shared_ptr<SimplePixelShader> ps;
 
-	ID3D11ShaderResourceView* diffuse;
-	ID3D11ShaderResourceView* specular;
-	ID3D11ShaderResourceView* metalness;
-	ID3D11ShaderResourceView* roughness;
-	ID3D11ShaderResourceView* normal;
-	ID3D11SamplerState* textureSampler;
+	ID3D11ShaderResourceView* diffuse   = 0;
+	ID3D11ShaderResourceView* specular  = 0;
+	ID3D11ShaderResourceView* metalness = 0;
+	ID3D11ShaderResourceView* roughness = 0;
+	ID3D11ShaderResourceView* normal    = 0;
+	ID3D11SamplerState* textureSampler  = 0;
 };
 

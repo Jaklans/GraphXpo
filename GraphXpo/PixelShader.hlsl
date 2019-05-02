@@ -1,23 +1,23 @@
-#define LIGHT_TYPE_DIR		0
-#define LIGHT_TYPE_POINT	1
-#define LIGHT_TYPE_SPOT		2
-
-//A general purpose light declaration
-struct Light
+struct PointLight
 {
-	int Type;
-	float3 Direction;
 	float Range;
 	float3 Position;
 	float3 Color;
 	float Intensity;
+	matrix viewProjection[6];
+};
+struct DirectionalLight
+{
+	float4 Direction;
+	float4 Color;
+	float Intensity;
 };
 
-
-#define MAX_LIGHTS 128
+#define MAX_LIGHTS 6
 cbuffer externalData : register(b0)
 {
-	Light lights[MAX_LIGHTS];
+	PointLight lights[MAX_LIGHTS];
+	DirectionalLight dirLight;
 
 	int lightCount;
 	int isRefractive;
@@ -50,7 +50,7 @@ struct VertexToPixel
 	float2 UV			: TEXCOORD;
 };
 
-float3 DirLight(Light light, VertexToPixel input)
+float3 DirLight(DirectionalLight light, VertexToPixel input)
 {
 	//Lambert Lighting + Ambient ////////////////////////////////////////////
 
@@ -76,7 +76,7 @@ float3 DirLight(Light light, VertexToPixel input)
 	return output * light.Intensity;
 }
 
-float3 PointLight(Light light, VertexToPixel input)
+float3 PointLights(PointLight light, VertexToPixel input)
 {
 	//Lambert Lighting + Ambient ////////////////////////////////////////////
 
@@ -145,12 +145,9 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 lightColor = float3(0, 0, 0);
 	for (int i = 0; i < lightCount; i++)
 	{
-		switch (lights[i].Type)
-		{
-		case LIGHT_TYPE_DIR: lightColor += DirLight(lights[i], input);			break;
-		case LIGHT_TYPE_POINT: lightColor += PointLight(lights[i], input);		break;
-		}
+		lightColor += PointLights(lights[i], input);
 	}
+	lightColor += DirLight(dirLight, input);
 
 	float4 finalColor = surfaceColor * float4(lightColor,1); //apply lighting to the sampled surface color
 

@@ -1,28 +1,28 @@
-#define LIGHT_TYPE_DIR		0
-#define LIGHT_TYPE_POINT	1
-#define LIGHT_TYPE_SPOT		2
-
-
 static const float F0_NON_METAL = 0.04f;
 #define MIN_ROUGHNESS		0.000001
 #define PI					3.14159265
 
-//A general purpose light declaration
-struct Light
+struct PointLight
 {
-	int Type;
-	float3 Direction;
 	float Range;
 	float3 Position;
 	float3 Color;
 	float Intensity;
+	matrix viewProjection[6];
+}; 
+struct DirectionalLight
+{
+	float4 Direction;
+	float4 Color;
+	float Intensity;
 };
 
 
-#define MAX_LIGHTS 128
+#define MAX_LIGHTS 6
 cbuffer externalData : register(b0)
 {
-	Light lights[MAX_LIGHTS];
+	PointLight lights[MAX_LIGHTS];
+	DirectionalLight dirLight;
 
 	int lightCount;
 
@@ -96,7 +96,7 @@ float3 DiffuseEnergyConserve(float diffuse, float3 specular, float metalness)
 	return diffuse * ((1 - saturate(specular)) * (1 - metalness));
 }
 
-float3 DirLight(Light light, VertexToPixel input, float4 surfaceColor, float3 specColor, float metalness, float roughness)
+float3 DirLight(DirectionalLight light, VertexToPixel input, float4 surfaceColor, float3 specColor, float metalness, float roughness)
 {
 	//calculate the normalized direction to the light
 	float3 toLight = normalize(-light.Direction);
@@ -110,7 +110,7 @@ float3 DirLight(Light light, VertexToPixel input, float4 surfaceColor, float3 sp
 	return output * light.Intensity * light.Color;
 }
 
-float3 PointLight(Light light, VertexToPixel input, float4 surfaceColor, float3 specColor, float metalness, float roughness)
+float3 PointLights(PointLight light, VertexToPixel input, float4 surfaceColor, float3 specColor, float metalness, float roughness)
 {
 	//calculate the normalized direction to the light
 	float3 toLight = normalize(light.Position - input.worldPos);
@@ -164,12 +164,9 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 lightColor = float3(0, 0, 0);
 	for (int i = 0; i < lightCount; i++)
 	{
-		switch (lights[i].Type)
-		{
-		case LIGHT_TYPE_DIR: lightColor += DirLight(lights[i], input, surfaceColor, specColor, metalness, roughness);			break;
-		case LIGHT_TYPE_POINT: lightColor += PointLight(lights[i], input, surfaceColor, specColor, metalness, roughness);		break;
-		}
+		lightColor += PointLights(lights[i], input, surfaceColor, specColor, metalness, roughness);
 	}
+	lightColor += DirLight(dirLight, input, surfaceColor, specColor, metalness, roughness);
 
 	float4 finalColor = float4(lightColor,1); //apply lighting to the sampled surface color
 
