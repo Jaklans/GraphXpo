@@ -14,7 +14,7 @@
 #include "FPSController.h"
 #include "Emitter.h"
 
-class Game 
+class Game
 	: public DXCore
 {
 
@@ -33,14 +33,14 @@ public:
 	void DrawWater(float totalTime);
 
 	// Overridden mouse input helper methods
-	void OnMouseDown (WPARAM buttonState, int x, int y);
-	void OnMouseUp	 (WPARAM buttonState, int x, int y);
-	void OnMouseMove (WPARAM buttonState, int x, int y);
-	void OnMouseWheel(float wheelDelta,   int x, int y);
+	void OnMouseDown(WPARAM buttonState, int x, int y);
+	void OnMouseUp(WPARAM buttonState, int x, int y);
+	void OnMouseMove(WPARAM buttonState, int x, int y);
+	void OnMouseWheel(float wheelDelta, int x, int y);
 private:
 
 	// Initialization helper methods - feel free to customize, combine, etc.
-	void LoadAssets(); 
+	void LoadAssets();
 	void CreateMatrices();
 	void CreateBasicGeometry();
 	void PostProcessing();
@@ -50,7 +50,8 @@ private:
 	bool rotating;
 
 	//Lights
-	std::vector<Light> lights;
+	DirectionalLight* directionalLight;
+	std::vector<PointLight> lights;
 
 	//Each mesh contains geometry data for drawing
 	std::shared_ptr<Mesh> meshes[8];
@@ -128,7 +129,7 @@ private:
 	ID3D11RenderTargetView* postProcessRTV;		// Allows us to render to a texture
 	ID3D11ShaderResourceView* postProcessSRV;	// Allows us to sample from the same texture
 
-	
+
 
 #pragma region Bloom
 	//Bloom Pixel Shaders
@@ -165,6 +166,6 @@ private:
 
 	ID3D11SamplerState* clampedSampler;
 
-	
+
 };
 

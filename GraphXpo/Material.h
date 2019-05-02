@@ -41,7 +41,6 @@ private:
 	std::shared_ptr<SimpleVertexShader> vs;
 	std::shared_ptr<SimplePixelShader> ps;
 
-	//Destructor tests if zero, values must be zeroed out to start
 	ID3D11ShaderResourceView* diffuse   = 0;
 	ID3D11ShaderResourceView* specular  = 0;
 	ID3D11ShaderResourceView* metalness = 0;

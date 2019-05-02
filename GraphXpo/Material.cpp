@@ -39,6 +39,7 @@ Material::Material(std::shared_ptr<SimpleVertexShader> const & vertex, std::shar
 	diffuse = diff;
 	metalness = metal;
 	roughness = rough;
+	specular = nullptr;
 	normal = norm;
 	textureSampler = sampler;
 }
@@ -49,7 +50,9 @@ Material::~Material()
 	if (diffuse) { diffuse->Release(); }
 	if (specular) { specular->Release(); }
 	if (normal) { normal->Release(); }
-	//textureSampler->Release();
+	if (textureSampler) { textureSampler->Release(); }
+	if (roughness) { roughness->Release(); }
+	if (metalness) { metalness->Release(); }
 }
 
 std::shared_ptr<SimpleVertexShader> Material::GetVertexShader()
