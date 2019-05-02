@@ -28,6 +28,16 @@ XMFLOAT4X4 Camera::GetProjectionMatrix()
 	return projectionMatrix;
 }
 
+DirectX::XMFLOAT4X4 Camera::GetInverseViewMatrix()
+{
+	return inverseViewMatrix;
+}
+
+DirectX::XMFLOAT4X4 Camera::GetInverseProjectionMatrix()
+{
+	return inverseProjectionMatrix;
+}
+
 ///<Summary>
 ///Calculate the camera's view matrix. Move the camera.
 ///</Summary>
@@ -40,6 +50,8 @@ void Camera::Update(float deltaTime)
 
 	//use the new vector to create the view matrix
 	XMMATRIX view = XMMatrixLookToLH(XMLoadFloat3(&transform.GetPosition()), forward, XMVectorSet(0, 1, 0, 0));
+
+	XMStoreFloat4x4(&inverseViewMatrix, XMMatrixTranspose(XMMatrixInverse(nullptr, view)));
 
 	//store the resultant view matrix
 	XMStoreFloat4x4(&viewMatrix, XMMatrixTranspose(view));
@@ -87,4 +99,6 @@ void Camera::UpdateProjectionMatrix(unsigned int width, unsigned int height)
 		0.1f,						// Near clip plane distance
 		100.0f);					// Far clip plane distance
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(P)); // Transpose for HLSL!
+
+	XMStoreFloat4x4(&inverseProjectionMatrix, XMMatrixTranspose(XMMatrixInverse(nullptr, P)));
 }

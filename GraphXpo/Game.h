@@ -29,6 +29,7 @@ public:
 	void Update(float deltaTime, float totalTime);
 	void Draw(float deltaTime, float totalTime);
 	void DrawSky();
+	void DrawWater(float totalTime);
 
 	// Overridden mouse input helper methods
 	void OnMouseDown (WPARAM buttonState, int x, int y);
@@ -51,10 +52,13 @@ private:
 	std::vector<Light> lights;
 
 	//Each mesh contains geometry data for drawing
-	std::shared_ptr<Mesh> meshes[7];
+	std::shared_ptr<Mesh> meshes[8];
+
 
 	// GameEntity objects
 	GameEntity* gameEntities[44];
+
+	GameEntity* flatWater;
 
 	std::shared_ptr<Material> barkMaterial;
 	std::shared_ptr<Material> carpetMaterial;
@@ -67,11 +71,16 @@ private:
 	std::shared_ptr<Material> logMaterial;
 	std::shared_ptr<Material> dirtMaterial;
 	std::shared_ptr<Material> caveMaterial;
+	std::shared_ptr<Material> waterMaterial;
+
 
 	// Wrappers for DirectX shaders to provide simplified functionality
 	std::shared_ptr<SimpleVertexShader> vertexShader;
 	std::shared_ptr<SimplePixelShader> pixelShader;
 	std::shared_ptr<SimplePixelShader> pbrPixelShader;
+	std::shared_ptr<SimplePixelShader> waterPixelShader;
+	std::shared_ptr<SimplePixelShader> refractiveMaskPS;
+	std::shared_ptr<SimplePixelShader> combineRefractionPS;
 
 	// The matrices to go from model space to screen space
 	DirectX::XMFLOAT4X4 worldMatrix;
@@ -110,6 +119,8 @@ private:
 	ID3D11RenderTargetView* postProcessRTV;		// Allows us to render to a texture
 	ID3D11ShaderResourceView* postProcessSRV;	// Allows us to sample from the same texture
 
+	
+
 #pragma region Bloom
 	//Bloom Pixel Shaders
 	std::shared_ptr<SimplePixelShader> brightExtractPS;
@@ -132,5 +143,19 @@ private:
 
 #pragma endregion
 
+
+	//Refraction assets
+	ID3D11RenderTargetView* nonRefractiveRTV;
+	ID3D11ShaderResourceView* nonRefractiveSRV;
+
+	ID3D11RenderTargetView* refractiveRTV;
+	ID3D11ShaderResourceView* refractiveSRV;
+
+	ID3D11RenderTargetView* refractiveMaskRTV;
+	ID3D11ShaderResourceView* refractiveMaskSRV;
+
+	ID3D11SamplerState* clampedSampler;
+
+	
 };
 

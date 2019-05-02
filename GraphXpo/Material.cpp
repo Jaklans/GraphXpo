@@ -39,6 +39,7 @@ Material::Material(std::shared_ptr<SimpleVertexShader> const & vertex, std::shar
 	diffuse = diff;
 	metalness = metal;
 	roughness = rough;
+	specular = nullptr;
 	normal = norm;
 	textureSampler = sampler;
 }

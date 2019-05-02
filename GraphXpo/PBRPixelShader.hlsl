@@ -27,6 +27,8 @@ cbuffer externalData : register(b0)
 	int lightCount;
 
 	float3 cameraPos;
+
+	matrix view;
 };
 
 Texture2D diffuseTexture : register(t0);
@@ -143,6 +145,7 @@ float3 ApplyNormalMap(VertexToPixel input)
 
 float4 main(VertexToPixel input) : SV_TARGET
 {
+
 	//Ensure normal and tangent are normalized and orthogonal after being interpolated
 	input.normal = normalize(input.normal);
 	input.tangent = normalize(input.tangent - dot(input.tangent, input.normal) * input.normal);
@@ -171,6 +174,9 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float4 finalColor = float4(lightColor,1); //apply lighting to the sampled surface color
 
 	finalColor = pow(finalColor, 1 / 2.2); //gamma correct the final color
+
+	finalColor.a = mul((input.worldPos - cameraPos), view).z / 99.9f;
+
 
 	return finalColor;
 }

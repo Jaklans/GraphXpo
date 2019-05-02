@@ -13,6 +13,9 @@ public:
 	DirectX::XMFLOAT4X4 GetViewMatrix();
 	DirectX::XMFLOAT4X4 GetProjectionMatrix();
 
+	DirectX::XMFLOAT4X4 GetInverseViewMatrix();
+	DirectX::XMFLOAT4X4 GetInverseProjectionMatrix();
+
 	///<Summary>
 	///Calculate the camera's view matrix. Move the camera.
 	///</Summary>
@@ -38,5 +41,8 @@ private:
 
 	DirectX::XMFLOAT4X4 viewMatrix;			//transforms by the camera's position
 	DirectX::XMFLOAT4X4 projectionMatrix;	//projects 3D scene onto a 2D plane
+
+	DirectX::XMFLOAT4X4 inverseViewMatrix;			
+	DirectX::XMFLOAT4X4 inverseProjectionMatrix;	
 };
 

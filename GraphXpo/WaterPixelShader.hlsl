@@ -2,6 +2,8 @@
 #define LIGHT_TYPE_POINT	1
 #define LIGHT_TYPE_SPOT		2
 
+#define TILE_INTERVAL		2
+
 //A general purpose light declaration
 struct Light
 {
@@ -20,16 +22,27 @@ cbuffer externalData : register(b0)
 	Light lights[MAX_LIGHTS];
 
 	int lightCount;
-	int isRefractive;
+
 	float3 cameraPos;
 
+	float3 scale;
+
+	float totalTime;
+
 	matrix view;
+	matrix projection;
+
+	int width;
+	int height;
 };
 
-Texture2D diffuseTexture : register(t0);
-Texture2D specularTexture : register(t1);
-Texture2D normalTexture : register(t3);
+Texture2D normalTexture   : register(t0);
+Texture2D sceneSansWater  : register(t1);
+Texture2D mask  : register(t2);
+
+
 SamplerState basicSampler : register(s0);
+SamplerState clampedSampler : register(s1);
 
 // Struct representing the data we expect to receive from earlier pipeline stages
 // - Should match the output of our corresponding vertex shader
@@ -71,7 +84,7 @@ float3 DirLight(Light light, VertexToPixel input)
 
 	float specAmt = pow(NdotH, 30);
 
-	output += float3(specAmt.rrr * specularTexture.Sample(basicSampler, input.UV).r);
+	output += float3(specAmt.rrr);
 
 	return output * light.Intensity;
 }
@@ -97,7 +110,7 @@ float3 PointLight(Light light, VertexToPixel input)
 
 	float specAmt = pow(NdotH, 30);
 
-	output += float3(specAmt.rrr * specularTexture.Sample(basicSampler, input.UV).r);
+	output += float3(specAmt.rrr);
 
 	float dist = length(light.Position - input.worldPos);
 
@@ -105,6 +118,16 @@ float3 PointLight(Light light, VertexToPixel input)
 	attenuation *= attenuation;
 
 	return output * attenuation * light.Intensity;
+}
+
+//Implements Schlick's approximation to calculate fresnel term (between water and air)
+float Fresnel(float3 view, float3 normal)
+{
+	float r0 = pow((1 - 1.33) / (1 + 1.33), 2);
+
+	float fres = r0 + (1 - r0) * pow((1 - dot(view, normal)), 5);
+
+	return fres;
 }
 
 // --------------------------------------------------------
@@ -125,25 +148,110 @@ float4 main(VertexToPixel input) : SV_TARGET
 	//implements the gram-schmidt process
 	input.tangent = normalize(input.tangent - dot(input.tangent, input.normal) * input.normal);
 
+	//scroll the two normal map samples
+	float2 dir1 = normalize(float2(1, 0.5)) * totalTime/400;
+	float2 dir2 = normalize(float2(-0.4, 1.8)) * totalTime / 400;
+
+	float2 sampleCoord1 = float2(input.UV.r + dir1.r, input.UV.g + dir1.g);
+	float2 sampleCoord2 = float2(input.UV.r + dir2.r, input.UV.g + dir2.g);
+
+	//tile the UV according to scale
+	sampleCoord1 = float2(sampleCoord1.r * scale.r / TILE_INTERVAL, sampleCoord1.g * scale.b / TILE_INTERVAL);
+	sampleCoord2 = float2(sampleCoord2.r * scale.r / TILE_INTERVAL*0.55, sampleCoord2.g * scale.b / TILE_INTERVAL*0.55);
+
 	//pull the normal from the normal map ////////////////////////////////////////////
-	float3 unpackedNorm = (float3)normalTexture.Sample(basicSampler, input.UV) * 2.0f - 1.0f;
+	float3 unpackedNorm1 = (float3)normalTexture.Sample(basicSampler, sampleCoord1) * 2.0f - 1.0f;
+	float3 unpackedNorm2 = (float3)normalTexture.Sample(basicSampler, sampleCoord2) * 2.0f - 1.0f;
+	float3 avgNorm = (unpackedNorm1 + unpackedNorm2) / 2;
 
 	float3 biTangent = cross(input.normal, input.tangent);
 
 	float3x3 TBN = float3x3(input.tangent, biTangent, input.normal);
 	
 	//Transform the normal from normal map to world space
-	input.normal = mul(unpackedNorm, TBN);
+	input.normal = mul(avgNorm, TBN);
 
+	//water color = reflection + refraction + water tint
+
+	//get refraction data
+	float2 coords = float2(input.position.x / width, input.position.y / height);
+	float2 perturbedCoords = coords + input.normal.xy * float2(0.05, 0.05);
+	float4 refraction = lerp(sceneSansWater.Sample(clampedSampler, coords), sceneSansWater.Sample(clampedSampler, perturbedCoords), mask.Sample(clampedSampler, perturbedCoords).a);
+	refraction.a = 1;
 	
-	//calculate color according to diffuse and lighting ///////////////////////////////
-	float4 surfaceColor = diffuseTexture.Sample(basicSampler, input.UV);
+	//get reflection data
+	float3 worldReflection = normalize(reflect(normalize(input.worldPos - cameraPos), input.normal));
 
-	surfaceColor = pow(surfaceColor, 2.2); //un-gamma correct diffuse surface color
+	matrix viewProj = mul(view, projection);
+
+	float4 reflection = float4(0,0,0,0);
+
+	float startDepth = mul((input.worldPos - cameraPos), view).z / 99.9f;
+	float4 prevRayPos = float4(input.worldPos, 1);
+	float previousDepth = startDepth;
+
+	int i;
+	for (i = 0; i < 16; i++)
+	{
+		float4 rayPos = float4(input.worldPos + worldReflection * (0.05f + 0.05 * i * i), 1);
+		float depth = mul((rayPos - cameraPos), view).z / 99.9f;
+
+		float4 rayPosScreenSpace = mul(rayPos, viewProj);
+
+		rayPosScreenSpace /= rayPosScreenSpace.w;
+
+		int winX = (int)round(((rayPosScreenSpace.x + 1) / 2.0) * width);
+		int winY = (int)round(((1 - rayPosScreenSpace.y) / 2.0) * height);
+		float2 rayPosUV = float2(winX / (float)width, winY / (float)height);
+
+		float4 pixel = sceneSansWater.Sample(basicSampler, rayPosUV);
+		
+		float4 maskPixel = mask.Sample(basicSampler, rayPosUV); //make sure that the pixel being considered for reflection is not water (or below it)
+
+		if (depth > pixel.a && previousDepth < pixel.a && maskPixel.a == 0) 
+		{
+			//refine the ray hit detection with a binary search
+			float4 MinRayPos = prevRayPos;
+			float4 MaxRayPos = rayPos;
+			float4 MidRayPos;
+			for (int binStep = 0; i < 10; i++)
+			{
+				MidRayPos = lerp(MinRayPos, MaxRayPos, 0.5);
+
+				depth = mul((MidRayPos - cameraPos), view).z / 99.9f;
+
+				rayPosScreenSpace = mul(MidRayPos, viewProj);
+
+				rayPosScreenSpace /= rayPosScreenSpace.w;
+
+				winX = (int)round(((rayPosScreenSpace.x + 1) / 2.0) * width);
+				winY = (int)round(((1 - rayPosScreenSpace.y) / 2.0) * height);
+
+				pixel = sceneSansWater.Sample(basicSampler, float2(winX / (float)width, winY / (float)height));
+
+				if (depth > pixel.a)
+					MaxRayPos = MidRayPos;
+				else
+					MinRayPos = MidRayPos;
+			}
+
+			reflection = pixel;
+			break;
+		}
+
+		previousDepth = depth;
+		prevRayPos = rayPos;
+	}
+
+	float fresnel = Fresnel(normalize(cameraPos - input.worldPos), input.normal); //approximate, but better than basic dot product
+	
+	float4 waterColor = float4((210.0/255.0), (247.0/255.0), (255.0/255.0), 1); //the tint of the water itself
+
+	float4 surfaceColor = lerp(refraction,reflection,fresnel) * waterColor;
 	
 	//process all lights this frame
 	float3 lightColor = float3(0, 0, 0);
-	for (int i = 0; i < lightCount; i++)
+	for (i = 0; i < lightCount; i++)
 	{
 		switch (lights[i].Type)
 		{
@@ -153,10 +261,6 @@ float4 main(VertexToPixel input) : SV_TARGET
 	}
 
 	float4 finalColor = surfaceColor * float4(lightColor,1); //apply lighting to the sampled surface color
-
-	finalColor = pow(finalColor, 1 / 2.2); //gamma correct the final color
-
-	finalColor.a = mul((input.worldPos - cameraPos), view).z / 99.9f;
 
 	return finalColor;
 }
