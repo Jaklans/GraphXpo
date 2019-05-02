@@ -22,6 +22,8 @@ Game::Game(HINSTANCE hInstance)
 	meshes[2] = nullptr;
 	meshes[3] = nullptr;
 	meshes[4] = nullptr;
+	meshes[5] = nullptr;
+	meshes[6] = nullptr;
 
 	postProcessing = true; //Toggle Post-processing effects
 
@@ -40,7 +42,7 @@ Game::~Game()
 	//I've opted to wrap meshes, shaders, and materials in shared_ptrs, so they don't require manual deallocation
 
 	//delete all of the game objects
-	for (size_t i = 0; i < 23; i++)
+	for (size_t i = 0; i < 45; i++)
 	{
 		delete gameEntities[i];
 	}
@@ -68,6 +70,7 @@ Game::~Game()
 	delete thrusterEmitter;
 	delete thrusterEmitter2;
 	delete thrusterEmitter3;
+	delete campfireEmitter;
 
 	// Release sky resources
 	skyDepthStencilState->Release();
@@ -118,9 +121,41 @@ void Game::Init()
 	dl3.Range = 3.0f;
 	dl3.Intensity = 2.0f;
 
+	Light dl4;
+	dl4.Type = LIGHT_TYPE_POINT;
+	dl4.Color = XMFLOAT3(1.0f, 0.2f, 0.2f);
+	dl4.Position = XMFLOAT3(1.6f, 1.25f, 9.7f);
+	dl4.Range = 2.5f;
+	dl4.Intensity = 2.5f;
+
+	Light dl5;
+	dl5.Type = LIGHT_TYPE_POINT;
+	dl5.Color = XMFLOAT3(0.2f, 0.2f, 1.0f);
+	dl5.Position = XMFLOAT3(-1.6f, 1.25f, 9.7f);
+	dl5.Range = 2.5f;
+	dl5.Intensity = 2.5f;
+
+	Light dl6;
+	dl6.Type = LIGHT_TYPE_POINT;
+	dl6.Color = XMFLOAT3(0.62f, 0.62f, 0.62f);
+	dl6.Position = XMFLOAT3(0.0f, 1.85f, 9.7f);
+	dl6.Range = 2.0f;
+	dl6.Intensity = 1.5f;
+
+	Light dl7;
+	dl7.Type = LIGHT_TYPE_POINT;
+	dl7.Color = XMFLOAT3(0.972f, 0.823f, 0.686f);
+	dl7.Position = XMFLOAT3(1.2f, -0.46f, 17.0f);
+	dl7.Range = 4.0f;
+	dl7.Intensity = 1.5f;
+
 	lights.emplace_back(dl1);
 	lights.emplace_back(dl2);
 	lights.emplace_back(dl3);
+	lights.emplace_back(dl4);
+	lights.emplace_back(dl5);
+	lights.emplace_back(dl6);
+	lights.emplace_back(dl7);
 
 	// Set up the Emitters
 	thrusterEmitter = new Emitter(
@@ -131,7 +166,7 @@ void Game::Init()
 		0.0f,									// End size
 		XMFLOAT4(0.788f, 0.094f, 0.094f, 0.0f),	// Start color
 		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// End color
-		XMFLOAT3(-4.44f, 0.115f, -1.68f),		// Emitter position
+		XMFLOAT3(-0.84f, 0.115f, 9.82f),		// Emitter position
 		XMFLOAT3(-0.7f, -0.25f, 0.7f),			// Constant acceleration
 		XMFLOAT3(-0.48f, -0.18f, 0.48f),		// Start velocity
 		XMFLOAT3(0.1f, 0.05f, 0.0f),			// Velocity randomness range
@@ -151,7 +186,7 @@ void Game::Init()
 		0.0f,									// End size
 		XMFLOAT4(0.788f, 0.094f, 0.094f, 0.0f),	// Start color
 		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// End color
-		XMFLOAT3(-4.12f, 0.0f, -1.48f),			// Emitter position
+		XMFLOAT3(-0.52f, 0.0f, 10.02f),			// Emitter position
 		XMFLOAT3(-0.7f, -0.25f, 0.7f),			// Constant acceleration
 		XMFLOAT3(-0.48f, -0.18f, 0.48f),		// Start velocity
 		XMFLOAT3(0.1f, 0.05f, 0.0f),			// Velocity randomness range
@@ -171,12 +206,32 @@ void Game::Init()
 		0.0f,									// End size
 		XMFLOAT4(0.788f, 0.094f, 0.094f, 0.0f),	// Start color
 		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// End color
-		XMFLOAT3(-4.68f, 0.0f, -1.98f),			// Emitter position
+		XMFLOAT3(-1.08f, 0.0f, 9.52f),			// Emitter position
 		XMFLOAT3(-0.7f, -0.25f, 0.7f),			// Constant acceleration
 		XMFLOAT3(-0.48f, -0.18f, 0.48f),		// Start velocity
 		XMFLOAT3(0.1f, 0.05f, 0.0f),			// Velocity randomness range
 		XMFLOAT3(0, 0, 0),						// Position randomness range
 		XMFLOAT4(0, 0, -2, 2),					// Random rotation ranges (startMin, startMax, endMin, endMax)
+		device,
+		particleTexture,
+		particleVertexShader,
+		particlePixelShader
+	);
+
+	campfireEmitter = new Emitter(
+		120,									// Max particles
+		40,										// Particles per second
+		2.8f,									// Particle lifetime
+		0.20f,									// Start size
+		0.02f,									// End size
+		XMFLOAT4(0.972f, 0.823f, 0.686f, 1.0f),	// Start color
+		XMFLOAT4(0.877f, 0.877f, 0.877f, 0.0f),	// End color
+		XMFLOAT3(1.2f, -0.66f, 17.0f),			// Emitter position
+		XMFLOAT3(0.0f, -0.18f, 0.0f),			// Constant acceleration
+		XMFLOAT3(0.0f, 0.60f, 0.0f),			// Start velocity
+		XMFLOAT3(0.0f, 0.15f, 0.0f),			// Velocity randomness range
+		XMFLOAT3(0.12f, 0.1f, 0.12f),			// Position randomness range
+		XMFLOAT4(0, 0, -1, 1),					// Random rotation ranges (startMin, startMax, endMin, endMax)
 		device,
 		particleTexture,
 		particleVertexShader,
@@ -242,12 +297,12 @@ void Game::LoadAssets()
 #pragma endregion
 
 #pragma region general texture loading
-	ID3D11ShaderResourceView* rockSRV;
-	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock.jpg", 0, &rockSRV);
-	ID3D11ShaderResourceView* rock_s_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock_s.jpg", 0, &rock_s_SRV);
-	ID3D11ShaderResourceView* rock_n_SRV;
-	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock_n.jpg", 0, &rock_n_SRV);
+	ID3D11ShaderResourceView* barkSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock.jpg", 0, &barkSRV);
+	ID3D11ShaderResourceView* bark_s_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock_s.jpg", 0, &bark_s_SRV);
+	ID3D11ShaderResourceView* bark_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\rock_n.jpg", 0, &bark_n_SRV);
 
 	ID3D11ShaderResourceView* brickSRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\brick.jpg", 0, &brickSRV);
@@ -293,6 +348,35 @@ void Game::LoadAssets()
 	ID3D11ShaderResourceView* metal_r_SRV;
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\grimy-metal_r.png", 0, &metal_r_SRV);
 
+	ID3D11ShaderResourceView* rockSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\sharprock_d.png", 0, &rockSRV);
+	ID3D11ShaderResourceView* rock_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\sharprock_n.png", 0, &rock_n_SRV);
+	ID3D11ShaderResourceView* rock_m_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\sharprock_m.png", 0, &rock_m_SRV);
+	ID3D11ShaderResourceView* rock_r_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\sharprock_r.png", 0, &rock_r_SRV);
+
+	ID3D11ShaderResourceView* logSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\log.png", 0, &logSRV);
+
+	ID3D11ShaderResourceView* dirtSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\dirt-d.png", 0, &dirtSRV);
+	ID3D11ShaderResourceView* dirt_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\dirt-n.png", 0, &dirt_n_SRV);
+	ID3D11ShaderResourceView* dirt_m_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\dirt-m.png", 0, &dirt_m_SRV);
+	ID3D11ShaderResourceView* dirt_r_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\dirt-r.png", 0, &dirt_r_SRV);
+
+	ID3D11ShaderResourceView* caveSRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\cave_d.png", 0, &caveSRV);
+	ID3D11ShaderResourceView* cave_n_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\cave_n.png", 0, &cave_n_SRV);
+	ID3D11ShaderResourceView* cave_m_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\cave_m.png", 0, &cave_m_SRV);
+	ID3D11ShaderResourceView* cave_r_SRV;
+	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\cave_r.png", 0, &cave_r_SRV);
 
 	CreateWICTextureFromFile(device, context, L"..\\..\\Assets\\Textures\\fireParticle.jpg", 0, &particleTexture);
 
@@ -302,13 +386,17 @@ void Game::LoadAssets()
 	ID3D11ShaderResourceView* skySRV;
 	CreateDDSTextureFromFile(device, L"..\\..\\Assets\\Textures\\NightSkyCubemap.dds", 0, &skySRV);
 
-	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, rockSRV, rock_s_SRV, rock_n_SRV, sampler);
+	barkMaterial = std::make_shared<Material>(vertexShader, pixelShader, barkSRV, bark_s_SRV, bark_n_SRV, sampler);
 	carpetMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, metalSRV, metal_m_SRV, metal_r_SRV, metal_n_SRV, sampler);
 	ceilingMaterial = std::make_shared<Material>(vertexShader, pixelShader, ceilingSRV, ceiling_s_SRV, ceiling_n_SRV, sampler);
 	marbleMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleSRV, marble_s_SRV, marble_n_SRV, sampler);
 	marbleWallMaterial = std::make_shared<Material>(vertexShader, pixelShader, marbleWallSRV, marbleWall_s_SRV, marbleWall_n_SRV, sampler);
 	spaceshipMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, spaceshipSRV, spaceship_m_SRV, spaceship_m_SRV, spaceship_n_SRV, sampler);
 	skyMaterial = std::make_shared<Material>(skyVertexShader, skyPixelShader, skySRV, nullptr, nullptr, sampler);
+	rockMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, rockSRV, rock_m_SRV, rock_r_SRV, rock_n_SRV, sampler);
+	logMaterial = std::make_shared<Material>(vertexShader, pixelShader, logSRV, nullptr, nullptr, sampler);
+	dirtMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, dirtSRV, dirt_m_SRV, dirt_r_SRV, dirt_n_SRV, sampler);
+	caveMaterial = std::make_shared<Material>(vertexShader, pbrPixelShader, caveSRV, cave_m_SRV, cave_r_SRV, cave_n_SRV, sampler);
 
 	// Rasterizer and DepthStencil states for the skybox
 	D3D11_RASTERIZER_DESC skyRD = {};
@@ -454,6 +542,8 @@ void Game::CreateBasicGeometry()
 	meshes[2] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\torus.obj", device);
 	meshes[3] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\arch.obj", device);
 	meshes[4] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\spaceship.obj", device);
+	meshes[5] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\sharprock.obj", device);
+	meshes[6] = std::make_shared<Mesh>((char *)"..\\..\\Assets\\Models\\log.obj", device);
 
 	// Create basic test geometry
 	for (int i = 0; i < 10; i++)
@@ -499,9 +589,131 @@ void Game::CreateBasicGeometry()
 
 	// Create the spaceship
 	gameEntities[22] = new GameEntity(meshes[4], spaceshipMaterial);
-	gameEntities[22]->transform->SetPosition(-3.6f, 0.44f, -2.5f);
+	gameEntities[22]->transform->SetPosition(0.0f, 0.44f, 9.0f);
 	gameEntities[22]->transform->SetScale(0.0023f, 0.0023f, 0.0023f);
 	gameEntities[22]->transform->SetRotation(0.22f, -0.8f, 0.0f);
+
+	// Add logs
+	gameEntities[23] = new GameEntity(meshes[6], logMaterial);
+	gameEntities[23]->transform->SetPosition(1.2f, -0.68f, 17.0f);
+	gameEntities[23]->transform->SetScale(0.32f, 0.32f, 0.32f);
+	gameEntities[23]->transform->SetRotation(0.0f, 1.0f, 0.0f);
+
+	gameEntities[24] = new GameEntity(meshes[6], logMaterial);
+	gameEntities[24]->transform->SetPosition(1.2f, -0.68f, 17.0f);
+	gameEntities[24]->transform->SetScale(0.32f, 0.32f, 0.32f);
+	gameEntities[24]->transform->SetRotation(0.0f, 2.5708f, 0.0f);
+
+	// Add walls for the rooms
+	gameEntities[25] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[25]->transform->SetPosition(-5.35f, 0.84f, 4.6f);
+	gameEntities[25]->transform->SetScale(0.02f, 3.32f, 6.0f);
+	gameEntities[25]->transform->SetRotationY(1.0f);
+	gameEntities[25]->SetUVScale(4.8f);
+
+	gameEntities[26] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[26]->transform->SetPosition(5.35f, 0.84f, 4.6f);
+	gameEntities[26]->transform->SetScale(0.02f, 3.32f, 6.0f);
+	gameEntities[26]->transform->SetRotationY(-1.0f);
+	gameEntities[26]->SetUVScale(4.8f);
+
+	gameEntities[27] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[27]->transform->SetPosition(2.9f, 0.84f, 9.7f);
+	gameEntities[27]->transform->SetScale(0.02f, 3.32f, 7.0f);
+	gameEntities[27]->SetUVScale(4.8f);
+
+	gameEntities[28] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[28]->transform->SetPosition(-2.9f, 0.84f, 9.7f);
+	gameEntities[28]->transform->SetScale(0.02f, 3.32f, 7.0f);
+	gameEntities[28]->SetUVScale(4.8f);
+
+	gameEntities[29] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[29]->transform->SetPosition(2.0f, 0.84f, 13.2f);
+	gameEntities[29]->transform->SetScale(0.05f, 3.32f, 1.8f);
+	gameEntities[29]->transform->SetRotationY(1.5708);
+	gameEntities[29]->SetUVScale(4.8f);
+
+	gameEntities[30] = new GameEntity(meshes[0], marbleWallMaterial);
+	gameEntities[30]->transform->SetPosition(-2.0f, 0.84f, 13.2f);
+	gameEntities[30]->transform->SetScale(0.05f, 3.32f, 1.8f);
+	gameEntities[30]->transform->SetRotationY(1.5708);
+	gameEntities[30]->SetUVScale(4.8f);
+
+	gameEntities[31] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[31]->transform->SetPosition(2.0f, 0.84f, 13.25f);
+	gameEntities[31]->transform->SetScale(0.05f, 3.32f, 1.8f);
+	gameEntities[31]->transform->SetRotationY(1.5708);
+	gameEntities[31]->SetUVScale(4.8f);
+
+	gameEntities[32] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[32]->transform->SetPosition(-2.0f, 0.84f, 13.25f);
+	gameEntities[32]->transform->SetScale(0.05f, 3.32f, 1.8f);
+	gameEntities[32]->transform->SetRotationY(1.5708);
+	gameEntities[32]->SetUVScale(4.8f);
+
+	gameEntities[33] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[33]->transform->SetPosition(2.9f, 0.84f, 16.75f);
+	gameEntities[33]->transform->SetScale(0.02f, 3.32f, 7.0f);
+	gameEntities[33]->SetUVScale(4.8f);
+
+	gameEntities[34] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[34]->transform->SetPosition(-2.9f, 0.84f, 16.75f);
+	gameEntities[34]->transform->SetScale(0.02f, 3.32f, 7.0f);
+	gameEntities[34]->SetUVScale(4.8f);
+
+	gameEntities[35] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[35]->transform->SetPosition(2.0f, 0.84f, 20.25f);
+	gameEntities[35]->transform->SetScale(0.05f, 3.32f, 1.8f);
+	gameEntities[35]->transform->SetRotationY(1.5708);
+	gameEntities[35]->SetUVScale(4.8f);
+
+	gameEntities[36] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[36]->transform->SetPosition(-2.0f, 0.84f, 20.25f);
+	gameEntities[36]->transform->SetScale(0.05f, 3.32f, 1.8f);
+	gameEntities[36]->transform->SetRotationY(1.5708);
+	gameEntities[36]->SetUVScale(4.8f);
+
+	// Add floors for rooms
+	gameEntities[37] = new GameEntity(meshes[0], carpetMaterial);
+	gameEntities[37]->transform->SetPosition(0.0f, -0.8f, 9.875f);
+	gameEntities[37]->transform->SetScale(5.8f, 0.02f, 6.75f);
+	gameEntities[37]->SetUVScale(4.2f);
+
+	gameEntities[38] = new GameEntity(meshes[0], dirtMaterial);
+	gameEntities[38]->transform->SetPosition(0.0f, -0.8f, 16.75f);
+	gameEntities[38]->transform->SetScale(5.8f, 0.02f, 7.0f);
+	gameEntities[38]->SetUVScale(4.2f);
+
+	// Add ceilings for rooms
+	gameEntities[39] = new GameEntity(meshes[0], carpetMaterial);
+	gameEntities[39]->transform->SetPosition(0.0f, 2.5f, 9.875f);
+	gameEntities[39]->transform->SetScale(5.8f, 0.02f, 6.75f);
+	gameEntities[39]->SetUVScale(4.2f);
+
+	gameEntities[40] = new GameEntity(meshes[0], caveMaterial);
+	gameEntities[40]->transform->SetPosition(0.0f, 2.5f, 16.75f);
+	gameEntities[40]->transform->SetScale(5.8f, 0.02f, 7.0f);
+	gameEntities[40]->SetUVScale(4.2f);
+
+	// Add rocks
+	gameEntities[41] = new GameEntity(meshes[5], rockMaterial);
+	gameEntities[41]->transform->SetScale(0.005f, 0.005f, 0.005f);
+	gameEntities[41]->transform->SetPosition(-0.2f, -0.72f, 15.8f);
+
+	gameEntities[42] = new GameEntity(meshes[5], rockMaterial);
+	gameEntities[42]->transform->SetScale(0.0058f, 0.0058f, 0.0058f);
+	gameEntities[42]->transform->SetPosition(-2.2f, -0.72f, 17.8f);
+	gameEntities[42]->transform->SetRotationY(0.6f);
+
+	gameEntities[43] = new GameEntity(meshes[5], rockMaterial);
+	gameEntities[43]->transform->SetScale(0.0037f, 0.0037f, 0.0037f);
+	gameEntities[43]->transform->SetPosition(0.823f, -0.72f, 18.0f);
+	gameEntities[43]->transform->SetRotationY(1.354f);
+
+	gameEntities[44] = new GameEntity(meshes[5], rockMaterial);
+	gameEntities[44]->transform->SetScale(0.0049f, 0.0049f, 0.0049f);
+	gameEntities[44]->transform->SetPosition(0.0f, -0.72f, 19.0f);
+	gameEntities[44]->transform->SetRotationY(2.4f);
 }
 
 
@@ -529,10 +741,10 @@ void Game::Update(float deltaTime, float totalTime)
 		Quit();
 
 	
-
 	thrusterEmitter->Update(deltaTime, totalTime);
 	thrusterEmitter2->Update(deltaTime, totalTime);
 	thrusterEmitter3->Update(deltaTime, totalTime);
+	campfireEmitter->Update(deltaTime, totalTime);
 
 	//camera->Update(deltaTime);
 	player->Update(deltaTime);
@@ -583,7 +795,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	
 #pragma region main draw
 	// Game Entity Meshes
-	for (size_t i = 0; i < 23; i++)
+	for (size_t i = 0; i < 45; i++)
 	{
 		// If the world matrix is outdated, recalculate it
 		if (gameEntities[i]->transform->matrixOutdated)
@@ -646,6 +858,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	thrusterEmitter->Draw(context, camera, totalTime);
 	thrusterEmitter2->Draw(context, camera, totalTime);
 	thrusterEmitter3->Draw(context, camera, totalTime);
+	campfireEmitter->Draw(context, camera, totalTime);
 
 	// Reset states for drawing the sky
 	context->OMSetBlendState(0, blend, 0xffffffff);

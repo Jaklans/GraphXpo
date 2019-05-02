@@ -24,3 +24,11 @@ A DirectX 11 graphics showcase.
 [Spaceship Models and Textures](https://assetstore.unity.com/packages/3d/vehicles/space/star-sparrow-modular-spaceship-73167)
 
 [Grimy Metal PBR Textures](https://freepbr.com/materials/grimy-metal/)
+
+[Log Model and Texture](https://poly.google.com/view/dkRLlPSdgdR)
+
+[Dirt Texture](https://freepbr.com/materials/dry-dirt-pbr-material/)
+
+[Cave Wall Texture](https://freepbr.com/materials/rough-rockface-3-pbr-material/)
+
+[Rock Model and Texture](https://freepbr.com/materials/sharp-rock-model-free/)

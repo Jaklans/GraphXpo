@@ -51,10 +51,10 @@ private:
 	std::vector<Light> lights;
 
 	//Each mesh contains geometry data for drawing
-	std::shared_ptr<Mesh> meshes[5];
+	std::shared_ptr<Mesh> meshes[7];
 
 	// GameEntity objects
-	GameEntity* gameEntities[23];
+	GameEntity* gameEntities[44];
 
 	std::shared_ptr<Material> barkMaterial;
 	std::shared_ptr<Material> carpetMaterial;
@@ -63,6 +63,10 @@ private:
 	std::shared_ptr<Material> marbleWallMaterial;
 	std::shared_ptr<Material> skyMaterial;
 	std::shared_ptr<Material> spaceshipMaterial;
+	std::shared_ptr<Material> rockMaterial;
+	std::shared_ptr<Material> logMaterial;
+	std::shared_ptr<Material> dirtMaterial;
+	std::shared_ptr<Material> caveMaterial;
 
 	// Wrappers for DirectX shaders to provide simplified functionality
 	std::shared_ptr<SimpleVertexShader> vertexShader;
@@ -94,6 +98,7 @@ private:
 	Emitter* thrusterEmitter;
 	Emitter* thrusterEmitter2;
 	Emitter* thrusterEmitter3;
+	Emitter* campfireEmitter;
 
 	//POST-PROCESSING RESOURCES
 
