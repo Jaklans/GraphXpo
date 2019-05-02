@@ -28,6 +28,7 @@ public:
 	void OnResize();
 	void Update(float deltaTime, float totalTime);
 	void Draw(float deltaTime, float totalTime);
+	void DrawShadowMaps();
 	void DrawSky();
 
 	// Overridden mouse input helper methods
@@ -47,7 +48,7 @@ private:
 	FPSController* player;
 	bool rotating;
 
-	//lights
+	//Lights
 	std::vector<Light> lights;
 
 	//Each mesh contains geometry data for drawing
@@ -95,6 +96,14 @@ private:
 	Emitter* thrusterEmitter2;
 	Emitter* thrusterEmitter3;
 
+	// Shadows
+	int shadowMapSize = 1024;
+	ID3D11DepthStencilView* shadowDSV;
+	ID3D11ShaderResourceView* shadowSRV;
+	ID3D11SamplerState* shadowSampler;
+	ID3D11RasterizerState* shadowRasterizer;
+	std::shared_ptr<SimpleVertexShader> shadowVS;
+
 	//POST-PROCESSING RESOURCES
 
 	bool postProcessing;
@@ -114,8 +123,6 @@ private:
 	//Render target and tetxure for bloom blur
 	ID3D11RenderTargetView* bloomRTV;
 	ID3D11ShaderResourceView* bloomSRV;
-
-
 #pragma endregion
 
 };

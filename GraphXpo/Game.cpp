@@ -221,7 +221,8 @@ void Game::LoadAssets()
 	particlePixelShader = std::make_shared<SimplePixelShader>(device, context);
 	particlePixelShader->LoadShaderFile(L"ParticlePixelShader.cso");
 
-
+	shadowVS = std::make_shared<SimpleVertexShader>(device, context);
+	shadowVS->LoadShaderFile(L"ShadowVS");
 #pragma endregion
 
 #pragma region general texture loading
@@ -383,6 +384,67 @@ void Game::LoadAssets()
 
 #pragma endregion
 
+#pragma region shadow loading
+	// Create Shadow Map Textures
+	D3D11_TEXTURE2D_DESC shadowDesc = {};
+	shadowDesc.Width = shadowMapSize;
+	shadowDesc.Height = shadowMapSize;
+	shadowDesc.ArraySize = 1;
+	shadowDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	shadowDesc.CPUAccessFlags = 0;
+	shadowDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadowDesc.MipLevels = 1;
+	shadowDesc.MiscFlags = 0;
+	shadowDesc.SampleDesc.Count = 1;
+	shadowDesc.SampleDesc.Quality = 0;
+	shadowDesc.Usage = D3D11_USAGE_DEFAULT;
+
+	ID3D11Texture2D* shadowTexture;
+	device->CreateTexture2D(&shadowDesc, 0, &shadowTexture);
+
+	// Create the depth/stencil
+	D3D11_DEPTH_STENCIL_VIEW_DESC shadowDepthStencilDesc = {};
+	shadowDepthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	shadowDepthStencilDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	shadowDepthStencilDesc.Texture2D.MipSlice = 0;
+
+	device->CreateDepthStencilView(shadowTexture, &shadowDepthStencilDesc, &shadowDSV);
+
+	// Create the SRV for the shadow map
+	D3D11_SHADER_RESOURCE_VIEW_DESC shadowsrvDesc = {};
+	shadowsrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	shadowsrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shadowsrvDesc.Texture2D.MipLevels = 1;
+	shadowsrvDesc.Texture2D.MostDetailedMip = 0;
+	//srvDesc.Texture2DArray.ArraySize = x;
+	device->CreateShaderResourceView(shadowTexture, &shadowsrvDesc, &shadowSRV);
+
+	// Release the texture reference since we don't need it
+	shadowTexture->Release();
+
+	// Comparison Sampler for shadows
+	D3D11_SAMPLER_DESC shadowSampDesc = {};
+	shadowSampDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR; // Could be anisotropic
+	shadowSampDesc.ComparisonFunc = D3D11_COMPARISON_LESS;
+	shadowSampDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.BorderColor[0] = 1.0f;
+	shadowSampDesc.BorderColor[1] = 1.0f;
+	shadowSampDesc.BorderColor[2] = 1.0f;
+	shadowSampDesc.BorderColor[3] = 1.0f;
+	device->CreateSamplerState(&shadowSampDesc, &shadowSampler);
+
+	// Create a rasterizer state
+	D3D11_RASTERIZER_DESC shadowRastDesc = {};
+	shadowRastDesc.FillMode = D3D11_FILL_SOLID;
+	shadowRastDesc.CullMode = D3D11_CULL_BACK;
+	shadowRastDesc.DepthClipEnable = true;
+	shadowRastDesc.DepthBias = 1000; // Multiplied by (smallest possible value > 0 in depth buffer)
+	shadowRastDesc.DepthBiasClamp = 0.0f;
+	shadowRastDesc.SlopeScaledDepthBias = 1.0f;
+	device->CreateRasterizerState(&shadowRastDesc, &shadowRasterizer);
+#pragma endregion
 }
 
 
@@ -433,8 +495,8 @@ void Game::CreateBasicGeometry()
 	// Create basic test geometry
 	for (int i = 0; i < 10; i++)
 	{
-		if(i % 2 == 0)
-			gameEntities[i] = new GameEntity(meshes[i%3], barkMaterial);
+		if (i % 2 == 0)
+			gameEntities[i] = new GameEntity(meshes[i % 3], barkMaterial);
 		else
 			gameEntities[i] = new GameEntity(meshes[i % 3], carpetMaterial);
 
@@ -445,7 +507,7 @@ void Game::CreateBasicGeometry()
 	// Create arches
 	for (int i = 0; i < 8; i++) {
 		gameEntities[i + 10] = new GameEntity(meshes[3], marbleMaterial);
-		gameEntities[i + 10]->transform->SetPosition(-5.7f + 3.8f * (i % 4), -0.82f, ((i/4) * 12.4f) - 6.2f);
+		gameEntities[i + 10]->transform->SetPosition(-5.7f + 3.8f * (i % 4), -0.82f, ((i / 4) * 12.4f) - 6.2f);
 		gameEntities[i + 10]->transform->SetScale(0.47f, 0.47f, 0.47f);
 	}
 
@@ -516,10 +578,10 @@ void Game::Update(float deltaTime, float totalTime)
 		XMFLOAT3 zAxis(0, 0, 1);
 		XMFLOAT3 yAxis(0, 1, 0);
 
-		gameEntities[i]->transform->Translate(cos(4*totalTime) * 0.05f * deltaTime, sin(4*totalTime) * 0.05f * deltaTime,0);
+		gameEntities[i]->transform->Translate(cos(4 * totalTime) * 0.05f * deltaTime, sin(4 * totalTime) * 0.05f * deltaTime, 0);
 		gameEntities[i]->transform->SetScale( //We should remove functionality of non uniform scaling
-			gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime, 
-			gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime, 
+			gameEntities[i]->transform->GetScale().x + cos(4 * totalTime) * 0.05f * deltaTime,
+			gameEntities[i]->transform->GetScale().y + cos(4 * totalTime) * 0.05f * deltaTime,
 			gameEntities[i]->transform->GetScale().z + cos(4 * totalTime) * 0.05f * deltaTime);
 		gameEntities[i]->transform->Rotate(zAxis, cos(2 * totalTime) * 0.5f * deltaTime);
 		gameEntities[i]->transform->Rotate(yAxis, 0.25f * deltaTime);
@@ -541,10 +603,11 @@ void Game::Draw(float deltaTime, float totalTime)
 		1.0f,
 		0);
 
+	DrawShadowMaps();
+
 	//POST PROCESS PRE-RENDER 
 	if (postProcessing)
 	{
-		
 		//Clear the post process texture
 		context->ClearRenderTargetView(postProcessRTV, color);
 		// Set the post process RTV as the current render target
@@ -573,9 +636,9 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		gameEntities[i]->material->GetPixelShader()->SetData("lights", &goodLights, sizeof(Light) * 128);
 		gameEntities[i]->material->GetPixelShader()->SetData("lightCount", &lightCount, sizeof(int));
-
+					   
 		gameEntities[i]->material->GetPixelShader()->SetData("cameraPos", &camera->transform.GetPosition(), sizeof(DirectX::XMFLOAT3));
-
+					   
 		gameEntities[i]->PrepareMaterial(camera->GetViewMatrix(), camera->GetProjectionMatrix());
 
 		// Set buffers in the input assembler
@@ -630,6 +693,75 @@ void Game::Draw(float deltaTime, float totalTime)
 	context->OMSetRenderTargets(1, &backBufferRTV, depthStencilView);
 }
 
+//Draws a shadow map for every light
+void Game::DrawShadowMaps() {
+
+	//Set Viewport for shadows
+	D3D11_VIEWPORT vp = {};
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	vp.Width = (float)shadowMapSize;
+	vp.Height = (float)shadowMapSize;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	context->RSSetViewports(1, &vp);
+
+	//Set and clear the depth stencil view for shadows
+	context->OMSetRenderTargets(0, 0, shadowDSV);
+	context->ClearDepthStencilView(shadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	context->RSSetState(shadowRasterizer);
+
+	ID3D11Buffer* vertexBuffer;
+	ID3D11Buffer* indexBuffer;
+
+	XMFLOAT4X4 view;
+	XMFLOAT4X4 projection;
+
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+
+	shadowVS->SetShader();
+
+	//for each (Light l in lights) {
+	Light l = lights[0];
+	{
+		XMStoreFloat4x4(&view, XMMatrixTranspose(
+			XMMatrixLookToLH(
+				XMLoadFloat3(&l.Position),
+				XMLoadFloat3(&l.Direction),
+				XMVectorSet(0, 1, 0, 0)
+			)
+		));
+		XMStoreFloat4x4(&projection, XMMatrixTranspose(
+			XMMatrixOrthographicLH(
+				10,
+				10,
+				.1f,
+				50)
+		));
+
+		for each (GameEntity* g in gameEntities) {
+			vertexBuffer = g->mesh->GetVertexBuffer();
+			indexBuffer = g->mesh->GetIndexBuffer();
+
+			context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+			context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+			shadowVS->SetMatrix4x4("world", g->transform->GetWorldMatrix());
+			shadowVS->SetMatrix4x4("view", view);
+			shadowVS->SetMatrix4x4("projection", projection);
+			shadowVS->CopyAllBufferData();
+
+			context->DrawIndexed(g->mesh->GetIndexCount(), 0, 0);
+		}
+	}
+
+	context->OMSetRenderTargets(1, &backBufferRTV, depthStencilView);
+	vp.Width = (float)width;
+	vp.Height = (float)height;
+	context->RSSetViewports(1, &vp);
+	context->RSSetState(0);
+}
 // Method for drawing the sky
 // This assumes that the cube mesh is meshes[0], might need to be changed at a later time
 void Game::DrawSky()
@@ -664,8 +796,6 @@ void Game::DrawSky()
 	context->RSSetState(0);
 	context->OMSetDepthStencilState(0, 0);
 }
-
-
 //General Post Processing method
 //Currently only implements bloom
 //TODO: Motion Blur, 
@@ -712,18 +842,12 @@ void Game::PostProcessing()
 	bloomBlurPS->SetShader();
 
 	context->Draw(3, 0);
-
-
 #pragma endregion
-
-
 
 	// Unbind all pixel shader SRVs
 	ID3D11ShaderResourceView* nullSRVs[16] = {};
 	context->PSSetShaderResources(0, 16, nullSRVs);
 }
-
-
 #pragma region Mouse Input
 
 void Game::OnMouseDown(WPARAM buttonState, int x, int y)
